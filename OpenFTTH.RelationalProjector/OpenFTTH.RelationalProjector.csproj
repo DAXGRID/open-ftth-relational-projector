@@ -9,6 +9,7 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="5.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="5.0.0" />
     <PackageReference Include="OpenFTTH.Events" Version="2.8.0" />
+    <PackageReference Include="OpenFTTH.EventSourcing" Version="1.4.0" />
     <PackageReference Include="OpenFTTH.RouteNetwork.API" Version="1.5.3" />
     <PackageReference Include="OpenFTTH.RouteNetwork.Business" Version="1.5.3" />
     <PackageReference Include="OpenFTTH.UtilityGraphService.API" Version="1.14.0" />
@@ -18,10 +19,6 @@
     <PackageReference Include="Serilog.Formatting.Compact" Version="1.1.0" />
     <PackageReference Include="Serilog.Settings.Configuration" Version="3.2.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="4.0.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\open-ftth-event-sourcing\OpenFTTH.EventSourcing\OpenFTTH.EventSourcing.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -15,6 +15,17 @@ executors:
         auth:
           username: $DOCKER_LOGIN
           password: $DOCKER_ACCESSTOKEN
+  alpine-git:
+    environment:
+      IMAGE_NAME: openftth/relational-projector
+      CHART_PATH: ./dax/relational-projector
+      GIT_USER_NAME: "dax-bot"
+      GIT_USER_EMAIL: "admin@dax.dk"
+      GIT_CLONE_REPO: "git@github.com:DAXGRID/dax-charts.git"
+      SSH_FINGERPRINT: "35:7a:bc:68:4a:3f:67:41:36:b3:cb:6b:42:d3:7d:28"
+    docker:
+    - image: alpine/git
+
 jobs:
   build-app:
     executor: dotnet-core-sdk
@@ -61,6 +72,33 @@ jobs:
            docker tag $IMAGE_NAME:latest $IMAGE_NAME:$IMAGE_TAG
            docker push $IMAGE_NAME:latest
            docker push $IMAGE_NAME:$IMAGE_TAG
+
+  update-helm-chart:
+    executor: alpine-git
+    steps:
+      - checkout
+      - add_ssh_keys:
+          fingerprints:
+            - $SSH_FINGERPRINT
+      - run:
+          name: key-scan
+          command: ssh-keyscan github.com >> ~/.ssh/known_hosts
+      - run:
+          name: git clone open-ftth-chart
+          command: git clone $GIT_CLONE_REPO
+      - run:
+          name: package and push
+          command: |
+             apk add bash
+             IMAGE_TAG_NO_V=${CIRCLE_TAG:1}
+             cd ./dax-charts
+             git config user.email $GIT_USER_EMAIL
+             git config user.name $GIT_USER_NAME
+             ./scripts/update-chart-version.sh $CHART_PATH $IMAGE_TAG_NO_V
+             git add .
+             git commit -m "upgrades $IMAGE_NAME to version $CIRCLE_TAG"
+             git push
+
 workflows:
   build-test-upload_image:
     jobs:
@@ -81,6 +119,15 @@ workflows:
           requires:
            - build-app
            - build-docker-image
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+      - update-helm-chart:
+          context: docker
+          requires:
+           - docker-publish-image
           filters:
             tags:
               only: /^v.*/

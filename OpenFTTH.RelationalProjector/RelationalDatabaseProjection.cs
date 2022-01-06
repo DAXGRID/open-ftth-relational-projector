@@ -155,10 +155,13 @@ namespace OpenFTTH.RelationalProjector
             }
             else
             {
-                var spanEquipmentSpec = _spanEquipmentSpecificationById[@event.Equipment.SpecificationId];
+                if (_spanEquipmentById.ContainsKey(@event.SpanEquipmentId))
+                {
+                    var spanEquipment = _spanEquipmentById[@event.SpanEquipmentId];
 
-                if (!spanEquipmentSpec.IsCable)
-                    _dbWriter.DeleteSpanEquipmentFromConduitTable(_schemaName, @event.SpanEquipmentId);
+                    if (!spanEquipment.IsCable)
+                        _dbWriter.DeleteSpanEquipmentFromConduitTable(_schemaName, @event.SpanEquipmentId);
+                }
             }
         }
 

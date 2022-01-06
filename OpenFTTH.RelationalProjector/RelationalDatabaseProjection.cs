@@ -141,7 +141,8 @@ namespace OpenFTTH.RelationalProjector
                 var spanEquipmentSpec = _spanEquipmentSpecificationById[@event.Equipment.SpecificationId];
                 var structureSpec = _spanStructureSpecificationById[spanEquipmentSpec.RootTemplate.SpanStructureSpecificationId];
 
-                _dbWriter.InsertSpanEquipmentIntoConduitTable(_schemaName, @event.Equipment.Id, @event.Equipment.WalkOfInterestId, structureSpec.OuterDiameter.Value);
+                if (!spanEquipmentSpec.IsCable)
+                    _dbWriter.InsertSpanEquipmentIntoConduitTable(_schemaName, @event.Equipment.Id, @event.Equipment.WalkOfInterestId, structureSpec.OuterDiameter.Value);
             }
         }
 
@@ -154,7 +155,10 @@ namespace OpenFTTH.RelationalProjector
             }
             else
             {
-                _dbWriter.DeleteSpanEquipmentFromConduitTable(_schemaName, @event.SpanEquipmentId);
+                var spanEquipmentSpec = _spanEquipmentSpecificationById[@event.Equipment.SpecificationId];
+
+                if (!spanEquipmentSpec.IsCable)
+                    _dbWriter.DeleteSpanEquipmentFromConduitTable(_schemaName, @event.SpanEquipmentId);
             }
         }
 

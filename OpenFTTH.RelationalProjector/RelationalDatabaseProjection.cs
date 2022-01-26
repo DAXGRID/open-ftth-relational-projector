@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using OpenFTTH.EventSourcing;
 using OpenFTTH.RelationalProjector.Database;
+using OpenFTTH.RouteNetwork.API.Model;
 using OpenFTTH.RouteNetwork.Business.Interest.Events;
 using OpenFTTH.UtilityGraphService.API.Model.UtilityNetwork;
 using OpenFTTH.UtilityGraphService.Business.Graph.Projections;
@@ -96,24 +97,25 @@ namespace OpenFTTH.RelationalProjector
         {
             if (_bulkMode)
             {
-                _interestToRouteElementRel[@event.Interest.Id] = @event.Interest.RouteNetworkElementRefs.ToArray();
+                _interestToRouteElementRel[@event.Interest.Id] = RemoveDublicatedIds(@event.Interest.RouteNetworkElementRefs).ToArray();
             }
             else
             {
-                _dbWriter.InsertGuidsIntoRouteElementToInterestTable(_schemaName, @event.Interest.Id, @event.Interest.RouteNetworkElementRefs);
+                _dbWriter.InsertGuidsIntoRouteElementToInterestTable(_schemaName, @event.Interest.Id, RemoveDublicatedIds(@event.Interest.RouteNetworkElementRefs));
             }
         }
+        
 
         private void Handle(WalkOfInterestRouteNetworkElementsModified @event)
         {
             if (_bulkMode)
             {
-                _interestToRouteElementRel[@event.InterestId] = @event.RouteNetworkElementIds.ToArray();
+                _interestToRouteElementRel[@event.InterestId] = RemoveDublicatedIds(@event.RouteNetworkElementIds).ToArray();
             }
             else
             {
                 _dbWriter.DeleteGuidsFromRouteElementToInterestTable(_schemaName, @event.InterestId);
-                _dbWriter.InsertGuidsIntoRouteElementToInterestTable(_schemaName, @event.InterestId, @event.RouteNetworkElementIds);
+                _dbWriter.InsertGuidsIntoRouteElementToInterestTable(_schemaName, @event.InterestId, RemoveDublicatedIds(@event.RouteNetworkElementIds));
             }
         }
 
@@ -206,6 +208,25 @@ namespace OpenFTTH.RelationalProjector
             _logger.LogInformation("Bulk write finish.");
 
 
+        }
+
+
+        private IEnumerable<Guid> RemoveDublicatedIds(RouteNetworkElementIdList routeNetworkElementRefs)
+        {
+            RouteNetworkElementIdList result = new();
+
+            HashSet<Guid> alreadyAdded = new();
+
+            foreach (var id in routeNetworkElementRefs)
+            {
+                if (!alreadyAdded.Contains(id))
+                {
+                    alreadyAdded.Add(id);
+                    result.Add(id);
+                }
+            }
+
+            return result;
         }
     }
 }

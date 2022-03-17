@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:6.0.100-preview.7-bullseye-slim-amd64 AS build-env
+FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build-env
 WORKDIR /app
 
 COPY ./*sln ./
@@ -12,7 +12,7 @@ WORKDIR /app/OpenFTTH.RelationalProjector
 RUN dotnet publish -c Release -o out --packages ./packages
 
 # Build runtime image
-FROM mcr.microsoft.com/dotnet/runtime:6.0.0-preview.7-bullseye-slim-amd64
+FROM mcr.microsoft.com/dotnet/runtime:6.0
 WORKDIR /app
 
 COPY --from=build-env /app/OpenFTTH.RelationalProjector/out .

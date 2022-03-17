@@ -33,7 +33,7 @@ namespace OpenFTTH.RelationalProjector
         {
             _logger = logger;
             _dbWriter = dbWriter;
-            
+
             ProjectEvent<WalkOfInterestRegistered>(Project);
             ProjectEvent<WalkOfInterestRouteNetworkElementsModified>(Project);
             ProjectEvent<InterestUnregistered>(Project);
@@ -104,7 +104,7 @@ namespace OpenFTTH.RelationalProjector
                 _dbWriter.InsertGuidsIntoRouteElementToInterestTable(_schemaName, @event.Interest.Id, RemoveDublicatedIds(@event.Interest.RouteNetworkElementRefs));
             }
         }
-        
+
 
         private void Handle(WalkOfInterestRouteNetworkElementsModified @event)
         {
@@ -124,7 +124,7 @@ namespace OpenFTTH.RelationalProjector
             if (_bulkMode)
             {
                 if (_interestToRouteElementRel.ContainsKey(@event.InterestId))
-                _interestToRouteElementRel.Remove(@event.InterestId);
+                    _interestToRouteElementRel.Remove(@event.InterestId);
             }
             else
             {
@@ -178,7 +178,6 @@ namespace OpenFTTH.RelationalProjector
                 var diameter = _spanStructureSpecificationById[_spanEquipmentSpecificationById[@event.NewSpecificationId].RootTemplate.SpanStructureSpecificationId].OuterDiameter;
 
                 _dbWriter.UpdateSpanEquipmentDiameterInConduitTable(_schemaName, @event.SpanEquipmentId, diameter.Value);
-
             }
         }
 
@@ -206,10 +205,7 @@ namespace OpenFTTH.RelationalProjector
             _bulkMode = false;
 
             _logger.LogInformation("Bulk write finish.");
-
-
         }
-
 
         private IEnumerable<Guid> RemoveDublicatedIds(RouteNetworkElementIdList routeNetworkElementRefs)
         {

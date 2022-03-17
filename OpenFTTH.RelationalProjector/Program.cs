@@ -1,12 +1,13 @@
 ﻿using Microsoft.Extensions.Hosting;
+using System.Threading.Tasks;
 
 namespace OpenFTTH.RelationalProjector
 {
     class Program
     {
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
-            Startup.CreateHostBuilder(args).Build().Run();
+            await Startup.CreateHostBuilder(args).Build().RunAsync();
         }
     }
 }

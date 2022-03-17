@@ -1,14 +1,10 @@
-﻿using Marten;
-using Marten.Events.Daemon.Resiliency;
-using Marten.Events.Projections;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Serialization;
-using OpenFTTH.Events;
 using OpenFTTH.EventSourcing;
 using OpenFTTH.EventSourcing.Postgres;
 using OpenFTTH.RelationalProjector.Database;
@@ -16,8 +12,6 @@ using OpenFTTH.RelationalProjector.Settings;
 using Serilog;
 using Serilog.Formatting.Compact;
 using System;
-using System.Linq;
-using System.Reflection;
 
 namespace OpenFTTH.RelationalProjector
 {
@@ -79,8 +73,6 @@ namespace OpenFTTH.RelationalProjector
 
         public static void ConfigureServices(IHostBuilder hostBuilder)
         {
-
-
             hostBuilder.ConfigureServices((hostContext, services) =>
             {
                 services.AddOptions();
@@ -94,7 +86,6 @@ namespace OpenFTTH.RelationalProjector
 
                 services.AddSingleton<EventSourcing.IProjection, RelationalDatabaseProjection>();
 
-
                 // Setup the event store
                 services.AddSingleton<IEventStore>(e =>
                         new PostgresEventStore(
@@ -104,10 +95,8 @@ namespace OpenFTTH.RelationalProjector
                         ) as IEventStore
                     );
 
-
                 // Database writer
                 services.AddSingleton<PostgresWriter>();
-             
 
                 // The worker
                 services.AddHostedService<Worker>();
@@ -115,4 +104,3 @@ namespace OpenFTTH.RelationalProjector
         }
     }
 }
-

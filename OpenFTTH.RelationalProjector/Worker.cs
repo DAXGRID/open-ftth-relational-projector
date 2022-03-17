@@ -1,6 +1,5 @@
 ﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Npgsql;
 using OpenFTTH.EventSourcing;
 using System;
 using System.IO;
@@ -27,7 +26,7 @@ namespace OpenFTTH.RelationalProjector
             _logger.LogInformation("Start reading all events...");
 
             _eventStore.DehydrateProjections();
-            
+
             _logger.LogInformation("Initial event processing finish.");
             _logger.LogInformation("Start listning for new events...");
 
@@ -43,7 +42,6 @@ namespace OpenFTTH.RelationalProjector
                 if (eventsProcessed > 0)
                     _logger.LogInformation($"Processed {eventsProcessed} new events.");
             }
-
 
             await Task.CompletedTask;
         }

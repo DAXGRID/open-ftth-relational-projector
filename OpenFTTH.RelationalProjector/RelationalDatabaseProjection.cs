@@ -9,6 +9,7 @@ using OpenFTTH.UtilityGraphService.Business.SpanEquipments.Events;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace OpenFTTH.RelationalProjector
 {
@@ -34,15 +35,14 @@ namespace OpenFTTH.RelationalProjector
             _logger = logger;
             _dbWriter = dbWriter;
 
-            ProjectEvent<WalkOfInterestRegistered>(Project);
-            ProjectEvent<WalkOfInterestRouteNetworkElementsModified>(Project);
-            ProjectEvent<InterestUnregistered>(Project);
-
-            ProjectEvent<SpanEquipmentSpecificationAdded>(Project);
-            ProjectEvent<SpanStructureSpecificationAdded>(Project);
-            ProjectEvent<SpanEquipmentPlacedInRouteNetwork>(Project);
-            ProjectEvent<SpanEquipmentSpecificationChanged>(Project);
-            ProjectEvent<SpanEquipmentRemoved>(Project);
+            ProjectEventAsync<WalkOfInterestRegistered>(Project);
+            ProjectEventAsync<WalkOfInterestRouteNetworkElementsModified>(Project);
+            ProjectEventAsync<InterestUnregistered>(Project);
+            ProjectEventAsync<SpanEquipmentSpecificationAdded>(Project);
+            ProjectEventAsync<SpanStructureSpecificationAdded>(Project);
+            ProjectEventAsync<SpanEquipmentPlacedInRouteNetwork>(Project);
+            ProjectEventAsync<SpanEquipmentSpecificationChanged>(Project);
+            ProjectEventAsync<SpanEquipmentRemoved>(Project);
 
             PrepareDatabase();
         }
@@ -55,7 +55,7 @@ namespace OpenFTTH.RelationalProjector
             _dbWriter.CreateRouteSegmentLabelView(_schemaName);
         }
 
-        private void Project(IEventEnvelope eventEnvelope)
+        private async Task Project(IEventEnvelope eventEnvelope)
         {
             switch (eventEnvelope.Data)
             {
@@ -91,6 +91,8 @@ namespace OpenFTTH.RelationalProjector
                     Handle(@event);
                     break;
             }
+
+            await Task.CompletedTask;
         }
 
         private void Handle(WalkOfInterestRegistered @event)
@@ -104,7 +106,6 @@ namespace OpenFTTH.RelationalProjector
                 _dbWriter.InsertGuidsIntoRouteElementToInterestTable(_schemaName, @event.Interest.Id, RemoveDublicatedIds(@event.Interest.RouteNetworkElementRefs));
             }
         }
-
 
         private void Handle(WalkOfInterestRouteNetworkElementsModified @event)
         {
@@ -191,7 +192,7 @@ namespace OpenFTTH.RelationalProjector
             _spanStructureSpecificationById[@event.Specification.Id] = @event.Specification;
         }
 
-        public override void DehydrationFinish()
+        public async override Task DehydrationFinishAsync()
         {
             _logger.LogInformation($"Bulk write to tables in schema: '{_schemaName}' started...");
 
@@ -205,6 +206,8 @@ namespace OpenFTTH.RelationalProjector
             _bulkMode = false;
 
             _logger.LogInformation("Bulk write finish.");
+
+            await Task.CompletedTask;
         }
 
         private IEnumerable<Guid> RemoveDublicatedIds(RouteNetworkElementIdList routeNetworkElementRefs)

@@ -37,7 +37,7 @@ namespace OpenFTTH.RelationalProjector
             {
                 Thread.Sleep(2000);
 
-                var eventsProcessed = _eventStore.CatchUpAsync();
+                var eventsProcessed = await _eventStore.CatchUpAsync();
 
                 if (eventsProcessed > 0)
                     _logger.LogInformation($"Processed {eventsProcessed} new events.");

@@ -55,7 +55,7 @@ namespace OpenFTTH.RelationalProjector
             _dbWriter.CreateRouteSegmentLabelView(_schemaName);
         }
 
-        private Project(IEventEnvelope eventEnvelope)
+        private void Project(IEventEnvelope eventEnvelope)
         {
             switch (eventEnvelope.Data)
             {

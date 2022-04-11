@@ -35,14 +35,14 @@ namespace OpenFTTH.RelationalProjector
             _logger = logger;
             _dbWriter = dbWriter;
 
-            ProjectEventAsync<WalkOfInterestRegistered>(Project);
-            ProjectEventAsync<WalkOfInterestRouteNetworkElementsModified>(Project);
-            ProjectEventAsync<InterestUnregistered>(Project);
-            ProjectEventAsync<SpanEquipmentSpecificationAdded>(Project);
-            ProjectEventAsync<SpanStructureSpecificationAdded>(Project);
-            ProjectEventAsync<SpanEquipmentPlacedInRouteNetwork>(Project);
-            ProjectEventAsync<SpanEquipmentSpecificationChanged>(Project);
-            ProjectEventAsync<SpanEquipmentRemoved>(Project);
+            ProjectEvent<WalkOfInterestRegistered>(Project);
+            ProjectEvent<WalkOfInterestRouteNetworkElementsModified>(Project);
+            ProjectEvent<InterestUnregistered>(Project);
+            ProjectEvent<SpanEquipmentSpecificationAdded>(Project);
+            ProjectEvent<SpanStructureSpecificationAdded>(Project);
+            ProjectEvent<SpanEquipmentPlacedInRouteNetwork>(Project);
+            ProjectEvent<SpanEquipmentSpecificationChanged>(Project);
+            ProjectEvent<SpanEquipmentRemoved>(Project);
 
             PrepareDatabase();
         }
@@ -55,7 +55,7 @@ namespace OpenFTTH.RelationalProjector
             _dbWriter.CreateRouteSegmentLabelView(_schemaName);
         }
 
-        private async Task Project(IEventEnvelope eventEnvelope)
+        private Project(IEventEnvelope eventEnvelope)
         {
             switch (eventEnvelope.Data)
             {
@@ -91,8 +91,6 @@ namespace OpenFTTH.RelationalProjector
                     Handle(@event);
                     break;
             }
-
-            await Task.CompletedTask;
         }
 
         private void Handle(WalkOfInterestRegistered @event)
@@ -192,7 +190,7 @@ namespace OpenFTTH.RelationalProjector
             _spanStructureSpecificationById[@event.Specification.Id] = @event.Specification;
         }
 
-        public async override Task DehydrationFinishAsync()
+        public override void DehydrationFinish()
         {
             _logger.LogInformation($"Bulk write to tables in schema: '{_schemaName}' started...");
 
@@ -206,8 +204,6 @@ namespace OpenFTTH.RelationalProjector
             _bulkMode = false;
 
             _logger.LogInformation("Bulk write finish.");
-
-            await Task.CompletedTask;
         }
 
         private IEnumerable<Guid> RemoveDublicatedIds(RouteNetworkElementIdList routeNetworkElementRefs)

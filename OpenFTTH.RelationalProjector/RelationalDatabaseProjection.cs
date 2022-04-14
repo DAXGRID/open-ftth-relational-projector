@@ -39,6 +39,10 @@ namespace OpenFTTH.RelationalProjector
             ProjectEvent<WalkOfInterestRouteNetworkElementsModified>(Project);
             ProjectEvent<InterestUnregistered>(Project);
 
+            ProjectEvent<SpanEquipmentPlacedInRouteNetwork>(Project);
+            ProjectEvent<SpanEquipmentMoved>(Project);
+            ProjectEvent<SpanEquipmentRemoved>(Project);
+
             ProjectEvent<SpanEquipmentSpecificationAdded>(Project);
             ProjectEvent<SpanStructureSpecificationAdded>(Project);
             ProjectEvent<SpanEquipmentSpecificationChanged>(Project);

@@ -9,6 +9,7 @@ using OpenFTTH.UtilityGraphService.Business.SpanEquipments.Events;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace OpenFTTH.RelationalProjector
 {
@@ -37,10 +38,6 @@ namespace OpenFTTH.RelationalProjector
             ProjectEvent<WalkOfInterestRegistered>(Project);
             ProjectEvent<WalkOfInterestRouteNetworkElementsModified>(Project);
             ProjectEvent<InterestUnregistered>(Project);
-
-            ProjectEvent<SpanEquipmentPlacedInRouteNetwork>(Project);
-            ProjectEvent<SpanEquipmentMoved>(Project);
-            ProjectEvent<SpanEquipmentRemoved>(Project);
 
             ProjectEvent<SpanEquipmentSpecificationAdded>(Project);
             ProjectEvent<SpanStructureSpecificationAdded>(Project);

@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Options;
 using Npgsql;
 using OpenFTTH.RelationalProjector.Settings;
+using OpenFTTH.RelationalProjector.State;
 using OpenFTTH.UtilityGraphService.API.Model.UtilityNetwork;
 using System;
 using System.Collections.Generic;
@@ -114,7 +115,7 @@ namespace OpenFTTH.RelationalProjector.Database
            RunDbCommand(transaction, createIndexCmdText);
         }
 
-        public void BulkCopyIntoConduitTable(string schemaName, List<SpanEquipment> spanEquipments, Dictionary<Guid, SpanEquipmentSpecification> spanEquipmentSpecifications, Dictionary<Guid, SpanStructureSpecification> spanStructureSpecifications)
+        public void BulkCopyIntoConduitTable(string schemaName, List<SpanEquipmentState> spanEquipments, Dictionary<Guid, SpanEquipmentSpecification> spanEquipmentSpecifications, Dictionary<Guid, SpanStructureSpecification> spanStructureSpecifications)
         {
             using (var conn = GetConnection() as NpgsqlConnection)
             {

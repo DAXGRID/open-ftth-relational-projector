@@ -130,9 +130,19 @@ namespace OpenFTTH.RelationalProjector.State
 
         public void ProcessSpanEquipmentRemoved(Guid spanEquipmentId)
         {
-            var existingSpaneEquipmentState = _spanEquipmentStateById[spanEquipmentId];
+            var existingSpanEquipmentState = _spanEquipmentStateById[spanEquipmentId];
 
-            _spanEquipmentStateByRootSegmentId.Remove(existingSpaneEquipmentState.RootSegmentId);
+            if (IsSpanEquipmentFromNodeSlack(existingSpanEquipmentState))
+            {
+                DecrementConduitSlackEndCount(existingSpanEquipmentState.FromNodeId);
+            }
+
+            if (IsSpanEquipmentToNodeSlack(existingSpanEquipmentState))
+            {
+                DecrementConduitSlackEndCount(existingSpanEquipmentState.ToNodeId);
+            }
+
+            _spanEquipmentStateByRootSegmentId.Remove(existingSpanEquipmentState.RootSegmentId);
             _spanEquipmentStateById.Remove(spanEquipmentId);
         }
 

@@ -381,13 +381,13 @@ namespace OpenFTTH.RelationalProjector.Database
 	                    case 
 	                      when inst.id is not null then 'SDU'
 	                      else routenode_kind
-	                    end as routenode_kind,
-	                    routenode_function, 
+	                    end as kind,
+	                    routenode_function as function, 
 	                    case 
 	                      when inst.id is not null then inst.name
 	                      else naming_name
-	                    end as naming_name, 
-	                    mapping_method,
+	                    end as name, 
+	                    mapping_method as method,
 	                    lifecycle_deployment_state
                       from 
 	                    route_network.route_node 
@@ -411,10 +411,10 @@ namespace OpenFTTH.RelationalProjector.Database
                   select 
 	                route_segment.mrid, 
 	                ST_AsGeoJSON(ST_Transform(route_segment.coord,4326)) as coord, 
-	                routesegment_kind, 
-	                mapping_method,
+	                routesegment_kind as kind, 
+	                mapping_method as method,
 	                lifecycle_deployment_state,
-	                slabel.label as naming_name
+	                slabel.label as name
                   from 
 	                route_network.route_segment 
                   left outer join

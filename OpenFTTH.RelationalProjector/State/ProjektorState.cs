@@ -21,6 +21,10 @@ namespace OpenFTTH.RelationalProjector.State
         {
             _nodeContainerToRouteNodeRelation[@event.Container.Id] = @event.Container.RouteNodeId;
             _routeNodeToNodeContainerRelation[@event.Container.RouteNodeId] = @event.Container.Id;
+
+            // remove conduit slack if any
+            if (_conduitSlackStateByRouteNodeId.ContainsKey(@event.Container.RouteNodeId))
+                _conduitSlackStateByRouteNodeId.Remove(@event.Container.RouteNodeId);
         }
 
         public void ProcessNodeContainerRemoved(Guid nodeContainerId)

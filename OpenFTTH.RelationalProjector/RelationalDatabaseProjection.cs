@@ -4,12 +4,11 @@ using OpenFTTH.RelationalProjector.Database;
 using OpenFTTH.RelationalProjector.State;
 using OpenFTTH.RouteNetwork.API.Model;
 using OpenFTTH.RouteNetwork.Business.Interest.Events;
-using OpenFTTH.UtilityGraphService.API.Model.UtilityNetwork;
+using OpenFTTH.UtilityGraphService.Business.NodeContainers.Events;
 using OpenFTTH.UtilityGraphService.Business.SpanEquipments.Events;
+using OpenFTTH.UtilityGraphService.Business.TerminalEquipments.Events;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace OpenFTTH.RelationalProjector
 {
@@ -20,13 +19,7 @@ namespace OpenFTTH.RelationalProjector
         private readonly ILogger<RelationalDatabaseProjection> _logger;
         private readonly PostgresWriter _dbWriter;
 
-        private Dictionary<Guid, Guid[]> _interestToRouteElementRel = new();
-
-        private Dictionary<Guid, SpanEquipmentSpecification> _spanEquipmentSpecificationById = new();
-
-        private Dictionary<Guid, SpanStructureSpecification> _spanStructureSpecificationById = new();
-
-        private Dictionary<Guid, SpanEquipmentState> _spanEquipmentStateById = new();
+        private readonly ProjektorState _state = new();
 
         private bool _bulkMode = true;
 
@@ -35,18 +28,30 @@ namespace OpenFTTH.RelationalProjector
             _logger = logger;
             _dbWriter = dbWriter;
 
+            // Node container events
+            ProjectEvent<NodeContainerPlacedInRouteNetwork>(Project);
+            ProjectEvent<NodeContainerRemovedFromRouteNetwork>(Project);
+
+            // Interest events
             ProjectEvent<WalkOfInterestRegistered>(Project);
             ProjectEvent<WalkOfInterestRouteNetworkElementsModified>(Project);
             ProjectEvent<InterestUnregistered>(Project);
 
+            // Span equipment events
             ProjectEvent<SpanEquipmentPlacedInRouteNetwork>(Project);
             ProjectEvent<SpanEquipmentMoved>(Project);
             ProjectEvent<SpanEquipmentRemoved>(Project);
 
+            // Span equipment specification events
             ProjectEvent<SpanEquipmentSpecificationAdded>(Project);
             ProjectEvent<SpanStructureSpecificationAdded>(Project);
             ProjectEvent<SpanEquipmentSpecificationChanged>(Project);
-            
+
+            // Terminal equipment events
+            ProjectEvent<TerminalEquipmentSpecificationAdded>(Project);
+            ProjectEvent<TerminalEquipmentPlacedInNodeContainer>(Project);
+            ProjectEvent<TerminalEquipmentRemoved>(Project);
+            ProjectEvent<TerminalEquipmentNamingInfoChanged>(Project);
 
             PrepareDatabase();
         }
@@ -57,12 +62,26 @@ namespace OpenFTTH.RelationalProjector
             _dbWriter.CreateRouteElementToInterestTable(_schemaName);
             _dbWriter.CreateConduitTable(_schemaName);
             _dbWriter.CreateRouteSegmentLabelView(_schemaName);
+            _dbWriter.CreateServiceTerminationTable(_schemaName);
+            _dbWriter.CreateRouteNodeView(_schemaName);
+            _dbWriter.CreateRouteSegmentView(_schemaName);
+
         }
 
         private void Project(IEventEnvelope eventEnvelope)
         {
             switch (eventEnvelope.Data)
             {
+                // Node container events
+                case (NodeContainerPlacedInRouteNetwork @event):
+                    _state.ProcessNodeContainerAdded(@event);
+                    break;
+
+                case (NodeContainerRemovedFromRouteNetwork @event):
+                    _state.ProcessNodeContainerRemoved(@event.NodeContainerId);
+                    break;
+
+
                 // Route network interest events
                 case (WalkOfInterestRegistered @event):
                     Handle(@event);
@@ -83,7 +102,7 @@ namespace OpenFTTH.RelationalProjector
                     break;
 
                 case (SpanEquipmentMoved @event):
-                    Handle(@event);
+                    _state.ProcessSpanEquipmentMoved(@event);
                     break;
 
                 case (SpanEquipmentRemoved @event):
@@ -93,17 +112,32 @@ namespace OpenFTTH.RelationalProjector
 
                 // Span equipment specification events
                 case (SpanEquipmentSpecificationAdded @event):
-                    Handle(@event);
+                    _state.ProcessSpanEquipmentSpecificationAdded(@event);
                     break;
 
                 case (SpanStructureSpecificationAdded @event):
-                    Handle(@event);
+                    _state.ProcessSpanStructureSpecificationAdded(@event);
                     break;
 
                 case (SpanEquipmentSpecificationChanged @event):
                     Handle(@event);
                     break;
 
+
+                // Terminal equipment events
+                case (TerminalEquipmentSpecificationAdded @event):
+                    _state.ProcessTerminalEquipmentSpecificationAdded(@event);
+                    break;
+
+                case (TerminalEquipmentPlacedInNodeContainer @event):
+                    Handle(@event);
+                    break;
+
+                /*
+                case (TerminalEquipmentRemoved @event):
+                    Handle(@event);
+                    break;
+                */
             }
         }
 
@@ -113,7 +147,7 @@ namespace OpenFTTH.RelationalProjector
         {
             if (_bulkMode)
             {
-                _interestToRouteElementRel[@event.Interest.Id] = RemoveDublicatedIds(@event.Interest.RouteNetworkElementRefs).ToArray();
+                _state.ProcessWalkOfInterestAdded(@event.Interest);
             }
             else
             {
@@ -125,7 +159,7 @@ namespace OpenFTTH.RelationalProjector
         {
             if (_bulkMode)
             {
-                _interestToRouteElementRel[@event.InterestId] = RemoveDublicatedIds(@event.RouteNetworkElementIds).ToArray();
+                _state.ProcessWalkOfInterestUpdated(@event.InterestId, @event.RouteNetworkElementIds);
             }
             else
             {
@@ -138,8 +172,7 @@ namespace OpenFTTH.RelationalProjector
         {
             if (_bulkMode)
             {
-                if (_interestToRouteElementRel.ContainsKey(@event.InterestId))
-                    _interestToRouteElementRel.Remove(@event.InterestId);
+                _state.ProcessInterestRemoved(@event.InterestId);
             }
             else
             {
@@ -152,38 +185,29 @@ namespace OpenFTTH.RelationalProjector
         #region Span Equipment Events
         private void Handle(SpanEquipmentPlacedInRouteNetwork @event)
         {
-            _spanEquipmentStateById[@event.Equipment.Id] = SpanEquipmentState.Create(@event.Equipment);
+            _state.ProcessSpanEquipmentAdded(@event.Equipment);
 
             if (!_bulkMode)
-            { 
-                var spanEquipmentSpec = _spanEquipmentSpecificationById[@event.Equipment.SpecificationId];
-                var structureSpec = _spanStructureSpecificationById[spanEquipmentSpec.RootTemplate.SpanStructureSpecificationId];
+            {
+                var spanEquipmentSpec = _state.GetSpanEquipmentSpecification(@event.Equipment.SpecificationId);
+                var structureSpec = _state.GetSpanStructureSpecification(spanEquipmentSpec.RootTemplate.SpanStructureSpecificationId);
 
                 if (!@event.Equipment.IsCable)
                     _dbWriter.InsertSpanEquipmentIntoConduitTable(_schemaName, @event.Equipment.Id, @event.Equipment.WalkOfInterestId, structureSpec.OuterDiameter.Value);
             }
         }
 
-        private void Handle(SpanEquipmentMoved @event)
-        {
-            if (_spanEquipmentStateById.TryGetValue(@event.SpanEquipmentId, out var spanEquipment))
-            {
-                spanEquipment.FromNodeId = @event.NodesOfInterestIds.First();
-                spanEquipment.FromNodeId = @event.NodesOfInterestIds.Last();
-            }
-        }
-
         private void Handle(SpanEquipmentRemoved @event)
         {
-            if (_spanEquipmentStateById.TryGetValue(@event.SpanEquipmentId, out var spanEquipment))
+            if (_state.TryGetSpanEquipmentState(@event.SpanEquipmentId, out var spanEquipmentState))
             {
                 if (!_bulkMode)
                 {
-                    if (!spanEquipment.IsCable)
+                    if (!spanEquipmentState.IsCable)
                         _dbWriter.DeleteSpanEquipmentFromConduitTable(_schemaName, @event.SpanEquipmentId);
                 }
 
-                _spanEquipmentStateById.Remove(@event.SpanEquipmentId);
+                _state.ProcessSpanEquipmentRemoved(@event.SpanEquipmentId);
             }
         }
 
@@ -193,28 +217,29 @@ namespace OpenFTTH.RelationalProjector
 
         private void Handle(SpanEquipmentSpecificationChanged @event)
         {
-            if (_bulkMode)
-            {
-                _spanEquipmentStateById[@event.SpanEquipmentId].SpecificationId = @event.NewSpecificationId;
-            }
-            else
-            {
-                _spanEquipmentStateById[@event.SpanEquipmentId].SpecificationId = @event.NewSpecificationId;
+            _state.ProcessSpanEquipmentChanged(@event);
 
-                var diameter = _spanStructureSpecificationById[_spanEquipmentSpecificationById[@event.NewSpecificationId].RootTemplate.SpanStructureSpecificationId].OuterDiameter;
+            if (!_bulkMode)
+            {
+                var outerDiameter = _state.GetSpanStructureSpecification(_state.GetSpanEquipmentSpecification(@event.NewSpecificationId).RootTemplate.SpanStructureSpecificationId).OuterDiameter;
 
-                _dbWriter.UpdateSpanEquipmentDiameterInConduitTable(_schemaName, @event.SpanEquipmentId, diameter.Value);
+                _dbWriter.UpdateSpanEquipmentDiameterInConduitTable(_schemaName, @event.SpanEquipmentId, outerDiameter.Value);
             }
         }
 
-        private void Handle(SpanEquipmentSpecificationAdded @event)
-        {
-            _spanEquipmentSpecificationById[@event.Specification.Id] = @event.Specification;
-        }
 
-        private void Handle(SpanStructureSpecificationAdded @event)
+        #endregion
+
+        #region Terminal equipment events
+        
+        private void Handle(TerminalEquipmentPlacedInNodeContainer @event)
         {
-            _spanStructureSpecificationById[@event.Specification.Id] = @event.Specification;
+            var serviceTerminationState = _state.ProcessServiceTerminationstAdded(@event);
+
+            if (serviceTerminationState != null && !_bulkMode)
+            {
+               _dbWriter.InsertIntoServiceTerminationTable(_schemaName, serviceTerminationState);
+            }
         }
 
         #endregion
@@ -223,12 +248,15 @@ namespace OpenFTTH.RelationalProjector
         {
             _logger.LogInformation($"Bulk write to tables in schema: '{_schemaName}' started...");
 
-            _dbWriter.BulkCopyGuidsToRouteElementToInterestTable(_schemaName, _interestToRouteElementRel);
+            _logger.LogInformation($"Writing route element interest relations...");
+            _dbWriter.BulkCopyGuidsToRouteElementToInterestTable(_schemaName, _state);
 
-            _dbWriter.BulkCopyIntoConduitTable(_schemaName, _spanEquipmentStateById.Values.ToList(), _spanEquipmentSpecificationById, _spanStructureSpecificationById);
+            _logger.LogInformation($"Writing service terminations...");
+            _dbWriter.BulkCopyIntoServiceTerminationTable(_schemaName, _state);
 
-            _interestToRouteElementRel = null;
-
+            _logger.LogInformation($"Writing conduits...");
+            _dbWriter.BulkCopyIntoConduitTable(_schemaName, _state);
+         
             _bulkMode = false;
 
             _logger.LogInformation("Bulk write finish.");
@@ -251,5 +279,6 @@ namespace OpenFTTH.RelationalProjector
 
             return result;
         }
+
     }
 }

@@ -37,7 +37,8 @@ namespace OpenFTTH.RelationalProjector.Database
             RunDbCommand(transaction, createIndexCmdText);
         }
 
-        public void BulkCopyGuidsToRouteElementToInterestTable(string schemaName, Dictionary<Guid, Guid[]> interestToRouteElementRel)
+
+        public void BulkCopyGuidsToRouteElementToInterestTable(string schemaName, ProjektorState state)
         {
             using (var conn = GetConnection() as NpgsqlConnection)
             {
@@ -51,11 +52,11 @@ namespace OpenFTTH.RelationalProjector.Database
 
                 using (var writer = conn.BeginBinaryImport($"copy {schemaName}.rel_interest_to_route_element (route_network_element_id, interest_id) from STDIN (FORMAT BINARY)"))
                 {
-                    foreach (var rel in interestToRouteElementRel)
+                    foreach (var walkOfInterestRouteElementRelations in state.WalkOfInterestToRouteElementRelations)
                     {
-                        foreach (var routeElementId in rel.Value)
+                        foreach (var routeElementId in walkOfInterestRouteElementRelations.Value)
                         {
-                            writer.WriteRow(routeElementId, rel.Key);
+                            writer.WriteRow(routeElementId, walkOfInterestRouteElementRelations.Key);
                         }
                     }
 
@@ -115,30 +116,6 @@ namespace OpenFTTH.RelationalProjector.Database
            RunDbCommand(transaction, createIndexCmdText);
         }
 
-        public void BulkCopyIntoConduitTable(string schemaName, List<SpanEquipmentState> spanEquipments, Dictionary<Guid, SpanEquipmentSpecification> spanEquipmentSpecifications, Dictionary<Guid, SpanStructureSpecification> spanStructureSpecifications)
-        {
-            using (var conn = GetConnection() as NpgsqlConnection)
-            {
-                conn.Open();
-
-                // Truncate the table
-                using (var truncateCmd = new NpgsqlCommand($"truncate table {schemaName}.conduit", conn))
-                {
-                    truncateCmd.ExecuteNonQuery();
-                }
-
-                using (var writer = conn.BeginBinaryImport($"copy {schemaName}.conduit (id, interest_id, outer_diameter) from STDIN (FORMAT BINARY)"))
-                {
-                    foreach (var spanEquipment in spanEquipments)
-                    {
-                        writer.WriteRow(spanEquipment.Id, spanEquipment.WalkOfInterestId, spanStructureSpecifications[spanEquipmentSpecifications[spanEquipment.SpecificationId].RootTemplate.SpanStructureSpecificationId].OuterDiameter.Value);
-                    }
-
-                    writer.Complete();
-                }
-            }
-        }
-
         public void InsertSpanEquipmentIntoConduitTable(string schemaName, Guid id, Guid interestId, int outerDiameter)
         {
             using var conn = GetConnection() as NpgsqlConnection;
@@ -174,6 +151,35 @@ namespace OpenFTTH.RelationalProjector.Database
             }
         }
 
+        public void BulkCopyIntoConduitTable(string schemaName, ProjektorState state)
+        {
+            using (var conn = GetConnection() as NpgsqlConnection)
+            {
+                conn.Open();
+
+                // Truncate the table
+                using (var truncateCmd = new NpgsqlCommand($"truncate table {schemaName}.conduit", conn))
+                {
+                    truncateCmd.ExecuteNonQuery();
+                }
+
+                using (var writer = conn.BeginBinaryImport($"copy {schemaName}.conduit (id, interest_id, outer_diameter) from STDIN (FORMAT BINARY)"))
+                {
+                    foreach (var spanEquipment in state.SpanEquipmentStates.Where(s => !s.IsCable))
+                    {
+                        var spanEquipmentSpecification = state.GetSpanEquipmentSpecification(spanEquipment.SpecificationId);
+                        var spanStructureSpecification = state.GetSpanStructureSpecification(spanEquipmentSpecification.RootTemplate.SpanStructureSpecificationId);
+
+                        writer.WriteRow(spanEquipment.Id, spanEquipment.WalkOfInterestId, spanStructureSpecification.OuterDiameter.Value);
+                    }
+
+                    writer.Complete();
+                }
+            }
+
+        }
+
+
         public void UpdateSpanEquipmentDiameterInConduitTable(string schemaName, Guid spanEquipmentId, int diameter)
         {
             using (var conn = GetConnection() as NpgsqlConnection)
@@ -191,6 +197,71 @@ namespace OpenFTTH.RelationalProjector.Database
                 }
             }
         }
+
+      
+
+        #endregion
+
+        #region Service Termination Point
+        public void CreateServiceTerminationTable(string schemaName, IDbTransaction transaction = null)
+        {
+            // Create table
+            string createTableCmdText = $"CREATE UNLOGGED TABLE IF NOT EXISTS {schemaName}.service_termination (id uuid, route_node_id uuid, name character varying(255), PRIMARY KEY(id));";
+            _logger.LogDebug($"Execute SQL: {createTableCmdText}");
+
+            RunDbCommand(transaction, createTableCmdText);
+
+            // Create index on route_node_id column
+            string createIndexCmdText = $"CREATE INDEX IF NOT EXISTS idx_service_termination_route_node_id ON {schemaName}.service_termination(route_node_id);";
+            RunDbCommand(transaction, createIndexCmdText);
+        }
+
+        public void InsertIntoServiceTerminationTable(string schemaName, ServiceTerminationState serviceTerminationState)
+        {
+            using var conn = GetConnection() as NpgsqlConnection;
+
+            conn.Open();
+
+            using var insertCmd = conn.CreateCommand();
+
+            insertCmd.CommandText = $"INSERT INTO {schemaName}.service_termination (id, route_node_id, name) VALUES (@id, @route_node_id, @name)";
+
+            var idParam = insertCmd.Parameters.Add("id", NpgsqlTypes.NpgsqlDbType.Uuid);
+            var routeNodeIdParam = insertCmd.Parameters.Add("route_node_id", NpgsqlTypes.NpgsqlDbType.Uuid);
+            var nameParam = insertCmd.Parameters.Add("name", NpgsqlTypes.NpgsqlDbType.Varchar);
+
+            idParam.Value = serviceTerminationState.Id;
+            routeNodeIdParam.Value = serviceTerminationState.RouteNodeId;
+            nameParam.Value = serviceTerminationState.Name;
+
+            insertCmd.ExecuteNonQuery();
+        }
+
+        public void BulkCopyIntoServiceTerminationTable(string schemaName, ProjektorState state)
+        {
+            using (var conn = GetConnection() as NpgsqlConnection)
+            {
+                conn.Open();
+
+                // Truncate the table
+                using (var truncateCmd = new NpgsqlCommand($"truncate table {schemaName}.service_termination", conn))
+                {
+                    truncateCmd.ExecuteNonQuery();
+                }
+
+                using (var writer = conn.BeginBinaryImport($"copy {schemaName}.service_termination (id, route_node_id, name) from STDIN (FORMAT BINARY)"))
+                {
+                    foreach (var serviceTermination in state.ServiceTerminationStates)
+                    {
+                        writer.WriteRow(serviceTermination.Id, serviceTermination.RouteNodeId, serviceTermination.Name);
+                    }
+
+                    writer.Complete();
+                }
+            }
+
+        }
+
 
         #endregion
 
@@ -294,6 +365,66 @@ namespace OpenFTTH.RelationalProjector.Database
                 where exists (
 	                select null from utility_network.rel_interest_to_route_element i2r2 where i2r2.route_network_element_id = route_segment.mrid
                 )";
+            _logger.LogDebug($"Execute SQL: {createViewCmdText}");
+
+            RunDbCommand(transaction, createViewCmdText);
+        }
+
+        public void CreateRouteNodeView(string schemaName, IDbTransaction transaction = null)
+        {
+            // Create view
+            string createViewCmdText = @"
+                CREATE OR REPLACE VIEW " + schemaName + @".route_node AS 
+                    select 
+	                    mrid, 
+	                    ST_AsGeoJSON(ST_Transform(coord,4326)) as coord, 
+	                    case 
+	                      when inst.id is not null then 'SDU'
+	                      else routenode_kind
+	                    end as routenode_kind,
+	                    routenode_function, 
+	                    case 
+	                      when inst.id is not null then inst.name
+	                      else naming_name
+	                    end as naming_name, 
+	                    mapping_method,
+	                    lifecycle_deployment_state
+                      from 
+	                    route_network.route_node 
+                      left outer join
+                        utility_network.service_termination inst on inst.route_node_id = route_node.mrid
+                      where
+	                    coord is not null and
+	                    marked_to_be_deleted = false
+                      order by mrid
+                ";
+            _logger.LogDebug($"Execute SQL: {createViewCmdText}");
+
+            RunDbCommand(transaction, createViewCmdText);
+        }
+
+        public void CreateRouteSegmentView(string schemaName, IDbTransaction transaction = null)
+        {
+            // Create view
+            string createViewCmdText = @"
+                CREATE OR REPLACE VIEW " + schemaName + @".route_segment AS 
+                  select 
+	                route_segment.mrid, 
+	                ST_AsGeoJSON(ST_Transform(route_segment.coord,4326)) as coord, 
+	                routesegment_kind, 
+	                mapping_method,
+	                lifecycle_deployment_state,
+	                slabel.label as naming_name
+                  from 
+	                route_network.route_segment 
+                  left outer join
+                    utility_network.route_segment_label slabel on slabel.mrid = route_segment.mrid
+                  where
+	                route_segment.coord is not null and
+	                route_segment.marked_to_be_deleted = false
+                  order by
+	                route_segment.mrid
+                ";
             _logger.LogDebug($"Execute SQL: {createViewCmdText}");
 
             RunDbCommand(transaction, createViewCmdText);

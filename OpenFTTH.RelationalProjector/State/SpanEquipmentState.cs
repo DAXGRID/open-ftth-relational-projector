@@ -15,13 +15,18 @@ namespace OpenFTTH.RelationalProjector.State
         public Guid FromNodeId { get; set; }
         public Guid ToNodeId { get; set; }
         public bool IsCable { get; set; }
-        public bool HasFromNodeConnections { get; set; }
-        public bool HasToNodeConnections { get; set; }
+        public bool IsCustomerConduit { get; set; }
+        public Guid RootSegmentId { get; set; }
+        public bool RootSegmentHasFromConnection { get; set; }
+        public bool RootSegmentHasToConnection { get; set; }
+        public Guid RootSegmentFromTerminalId { get; set; }
+        public Guid RootSegmentToTerminalId { get; set; }
         public bool HasChildSpanEquipments { get; set; }
+        public Guid ChildSpanEquipmentId { get; internal set; }
 
-        public static SpanEquipmentState Create(SpanEquipment spanEquipment)
+        public static SpanEquipmentState Create(SpanEquipment spanEquipment, SpanEquipmentSpecification spanEquipmentSpecification)
         {
-            return new SpanEquipmentState()
+            var state = new SpanEquipmentState()
             {
                 Id = spanEquipment.Id,
                 WalkOfInterestId = spanEquipment.WalkOfInterestId,
@@ -29,9 +34,13 @@ namespace OpenFTTH.RelationalProjector.State
                 FromNodeId = spanEquipment.NodesOfInterestIds.First(),
                 ToNodeId = spanEquipment.NodesOfInterestIds.Last(),
                 IsCable = spanEquipment.IsCable,
-                HasFromNodeConnections = CheckIfAnyFromConnections(spanEquipment),
-                HasToNodeConnections = CheckIfAnyToConnections(spanEquipment)
+                RootSegmentHasFromConnection = CheckIfAnyFromConnections(spanEquipment),
+                RootSegmentHasToConnection = CheckIfAnyToConnections(spanEquipment),
+                RootSegmentId = spanEquipment.SpanStructures.First().SpanSegments.First().Id,
+                IsCustomerConduit = spanEquipmentSpecification.Name.ToLower().Contains("ø12") ? true : false
             };
+
+            return state;
         }
 
         private static bool CheckIfAnyFromConnections(SpanEquipment spanEquipment)

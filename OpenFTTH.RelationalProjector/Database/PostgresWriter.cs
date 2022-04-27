@@ -265,6 +265,47 @@ namespace OpenFTTH.RelationalProjector.Database
 
         #endregion
 
+        #region Conduit Slack
+        public void CreateConduitSlackTable(string schemaName, IDbTransaction transaction = null)
+        {
+            // Create table
+            string createTableCmdText = $"CREATE UNLOGGED TABLE IF NOT EXISTS {schemaName}.conduit_slack (id uuid, route_node_id uuid, number_of_ends integer, PRIMARY KEY(id));";
+            _logger.LogDebug($"Execute SQL: {createTableCmdText}");
+
+            RunDbCommand(transaction, createTableCmdText);
+
+            // Create index on route_node_id column
+            string createIndexCmdText = $"CREATE INDEX IF NOT EXISTS idx_conduit_slack_route_node_id ON {schemaName}.conduit_slack(route_node_id);";
+            RunDbCommand(transaction, createIndexCmdText);
+        }
+
+        public void BulkCopyIntoConduitSlackTable(string schemaName, ProjektorState state)
+        {
+            using (var conn = GetConnection() as NpgsqlConnection)
+            {
+                conn.Open();
+
+                // Truncate the table
+                using (var truncateCmd = new NpgsqlCommand($"truncate table {schemaName}.conduit_slack", conn))
+                {
+                    truncateCmd.ExecuteNonQuery();
+                }
+
+                using (var writer = conn.BeginBinaryImport($"copy {schemaName}.conduit_slack (id, route_node_id, number_of_ends) from STDIN (FORMAT BINARY)"))
+                {
+                    foreach (var conduitSlack in state.ConduitSlackStates)
+                    {
+                        writer.WriteRow(conduitSlack.Id, conduitSlack.RouteNodeId, conduitSlack.NumberOfConduitEnds);
+                    }
+
+                    writer.Complete();
+                }
+            }
+
+        }
+
+        #endregion
+
         #region Generel database commands
         public IDbConnection GetConnection()
         {
@@ -380,11 +421,13 @@ namespace OpenFTTH.RelationalProjector.Database
 	                    ST_AsGeoJSON(ST_Transform(coord,4326)) as coord, 
 	                    case 
 	                      when inst.id is not null then 'SDU'
+                          when slack.id is not null then 'ConduitSlack'
 	                      else routenode_kind
 	                    end as kind,
 	                    routenode_function as function, 
 	                    case 
 	                      when inst.id is not null then inst.name
+                          when slack.id is not null then cast(cast(slack.number_of_ends as character varying) || ' stk' as character varying(255))
 	                      else naming_name
 	                    end as name, 
 	                    mapping_method as method,
@@ -393,6 +436,8 @@ namespace OpenFTTH.RelationalProjector.Database
 	                    route_network.route_node 
                       left outer join
                         utility_network.service_termination inst on inst.route_node_id = route_node.mrid
+                      left outer join
+                        utility_network.conduit_slack slack on slack.route_node_id = route_node.mrid
                       where
 	                    coord is not null and
 	                    marked_to_be_deleted = false

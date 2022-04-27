@@ -41,6 +41,10 @@ namespace OpenFTTH.RelationalProjector
             ProjectEvent<SpanEquipmentPlacedInRouteNetwork>(Project);
             ProjectEvent<SpanEquipmentMoved>(Project);
             ProjectEvent<SpanEquipmentRemoved>(Project);
+            ProjectEvent<SpanSegmentsConnectedToSimpleTerminals>(Project);
+            ProjectEvent<SpanSegmentsDisconnectedFromTerminals>(Project);
+            ProjectEvent<SpanEquipmentAffixedToParent>(Project);
+            ProjectEvent<SpanEquipmentDetachedFromParent>(Project);
 
             // Span equipment specification events
             ProjectEvent<SpanEquipmentSpecificationAdded>(Project);
@@ -52,8 +56,6 @@ namespace OpenFTTH.RelationalProjector
             ProjectEvent<TerminalEquipmentPlacedInNodeContainer>(Project);
             ProjectEvent<TerminalEquipmentRemoved>(Project);
             ProjectEvent<TerminalEquipmentNamingInfoChanged>(Project);
-
-            PrepareDatabase();
         }
 
         private void PrepareDatabase()
@@ -63,9 +65,9 @@ namespace OpenFTTH.RelationalProjector
             _dbWriter.CreateConduitTable(_schemaName);
             _dbWriter.CreateRouteSegmentLabelView(_schemaName);
             _dbWriter.CreateServiceTerminationTable(_schemaName);
+            _dbWriter.CreateConduitSlackTable(_schemaName);
             _dbWriter.CreateRouteNodeView(_schemaName);
             _dbWriter.CreateRouteSegmentView(_schemaName);
-
         }
 
         private void Project(IEventEnvelope eventEnvelope)
@@ -107,6 +109,22 @@ namespace OpenFTTH.RelationalProjector
 
                 case (SpanEquipmentRemoved @event):
                     Handle(@event);
+                    break;
+
+                case (SpanSegmentsConnectedToSimpleTerminals @event):
+                    _state.ProcessSpanEquipmentConnects(@event);
+                    break;
+
+                case (SpanSegmentsDisconnectedFromTerminals @event):
+                    _state.ProcessSpanEquipmentDisconnects(@event);
+                    break;
+
+                case (SpanEquipmentAffixedToParent @event):
+                    _state.ProcessSpanEquipmentAffixedToParent(@event);
+                    break;
+
+                case (SpanEquipmentDetachedFromParent @event):
+                    _state.ProcessSpanEquipmentDetachedFromParent(@event);
                     break;
 
 
@@ -246,6 +264,8 @@ namespace OpenFTTH.RelationalProjector
 
         public override void DehydrationFinish()
         {
+            PrepareDatabase();
+
             _logger.LogInformation($"Bulk write to tables in schema: '{_schemaName}' started...");
 
             _logger.LogInformation($"Writing route element interest relations...");
@@ -256,7 +276,10 @@ namespace OpenFTTH.RelationalProjector
 
             _logger.LogInformation($"Writing conduits...");
             _dbWriter.BulkCopyIntoConduitTable(_schemaName, _state);
-         
+
+            _logger.LogInformation($"Writing conduit slacks...");
+            _dbWriter.BulkCopyIntoConduitSlackTable(_schemaName, _state);
+
             _bulkMode = false;
 
             _logger.LogInformation("Bulk write finish.");

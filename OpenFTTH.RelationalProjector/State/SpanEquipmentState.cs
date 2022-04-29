@@ -10,6 +10,7 @@ namespace OpenFTTH.RelationalProjector.State
     public class SpanEquipmentState
     {
         public Guid Id { get; set; }
+        public string Name { get; set; }
         public Guid WalkOfInterestId { get; set; }
         public Guid SpecificationId { get; set; }
         public Guid FromNodeId { get; set; }
@@ -29,6 +30,7 @@ namespace OpenFTTH.RelationalProjector.State
             var state = new SpanEquipmentState()
             {
                 Id = spanEquipment.Id,
+                Name = spanEquipment.Name,
                 WalkOfInterestId = spanEquipment.WalkOfInterestId,
                 SpecificationId = spanEquipment.SpecificationId,
                 FromNodeId = spanEquipment.NodesOfInterestIds.First(),

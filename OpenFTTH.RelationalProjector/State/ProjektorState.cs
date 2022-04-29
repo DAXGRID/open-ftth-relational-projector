@@ -19,12 +19,16 @@ namespace OpenFTTH.RelationalProjector.State
 
         public void ProcessNodeContainerAdded(NodeContainerPlacedInRouteNetwork @event)
         {
-            _nodeContainerToRouteNodeRelation[@event.Container.Id] = @event.Container.RouteNodeId;
-            _routeNodeToNodeContainerRelation[@event.Container.RouteNodeId] = @event.Container.Id;
+            // Remove conduit slack if any, unless uknown conduit junction
+            // FIX: Remove conduit slack stuff to customer specific relational projector service
+            if (@event.Container.SpecificationId != Guid.Parse("c288e797-a65c-4cf6-b63d-5eda4b4a8a8c"))
+            {
+                _nodeContainerToRouteNodeRelation[@event.Container.Id] = @event.Container.RouteNodeId;
+                _routeNodeToNodeContainerRelation[@event.Container.RouteNodeId] = @event.Container.Id;
 
-            // remove conduit slack if any
-            if (_conduitSlackStateByRouteNodeId.ContainsKey(@event.Container.RouteNodeId))
-                _conduitSlackStateByRouteNodeId.Remove(@event.Container.RouteNodeId);
+                if (_conduitSlackStateByRouteNodeId.ContainsKey(@event.Container.RouteNodeId))
+                    _conduitSlackStateByRouteNodeId.Remove(@event.Container.RouteNodeId);
+            }
         }
 
         public void ProcessNodeContainerRemoved(Guid nodeContainerId)
@@ -99,6 +103,7 @@ namespace OpenFTTH.RelationalProjector.State
                 IncrementConduitSlackEndCount(spanEquipmentState.ToNodeId);
             }
         }
+
         public void ProcessSpanEquipmentMoved(SpanEquipmentMoved @event)
         {
             Guid newFromNodeId = @event.NodesOfInterestIds.First();
@@ -324,6 +329,7 @@ namespace OpenFTTH.RelationalProjector.State
 
         private bool IsSpanEquipmentToNodeSlack(SpanEquipmentState spanEquipmentState)
         {
+
             if (spanEquipmentState.IsCustomerConduit && !_routeNodeToNodeContainerRelation.ContainsKey(spanEquipmentState.ToNodeId) && !spanEquipmentState.RootSegmentHasToConnection && !spanEquipmentState.HasChildSpanEquipments)
             {
                 return true;

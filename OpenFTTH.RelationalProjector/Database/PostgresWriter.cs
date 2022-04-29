@@ -102,21 +102,21 @@ namespace OpenFTTH.RelationalProjector.Database
 
         #endregion
 
-        #region Conduit table
-        public void CreateConduitTable(string schemaName, IDbTransaction transaction = null)
+        #region Span Equipment table
+        public void CreateSpanEquipmentTable(string schemaName, IDbTransaction transaction = null)
         {
             // Create table
-            string createTableCmdText = $"CREATE UNLOGGED TABLE IF NOT EXISTS {schemaName}.conduit (id uuid, interest_id uuid, outer_diameter integer, PRIMARY KEY(id));";
+            string createTableCmdText = $"CREATE UNLOGGED TABLE IF NOT EXISTS {schemaName}.span_equipment (id uuid, interest_id uuid, outer_diameter integer, is_cable boolean, name character varying(255), spec_name character varying(255), PRIMARY KEY(id));";
             _logger.LogDebug($"Execute SQL: {createTableCmdText}");
             
             RunDbCommand(transaction, createTableCmdText);
 
             // Create index on interest_id column
-           string createIndexCmdText = $"CREATE INDEX IF NOT EXISTS idx_conduit_interest_id ON {schemaName}.conduit(interest_id);";
+           string createIndexCmdText = $"CREATE INDEX IF NOT EXISTS idx_span_equipment_interest_id ON {schemaName}.span_equipment(interest_id);";
            RunDbCommand(transaction, createIndexCmdText);
         }
 
-        public void InsertSpanEquipmentIntoConduitTable(string schemaName, Guid id, Guid interestId, int outerDiameter)
+        public void InsertSpanEquipment(string schemaName, SpanEquipment spanEquipment, SpanEquipmentSpecification spanEquipmentSpecification, int outerDiameter)
         {
             using var conn = GetConnection() as NpgsqlConnection;
 
@@ -124,25 +124,27 @@ namespace OpenFTTH.RelationalProjector.Database
 
             using var insertCmd = conn.CreateCommand();
 
-            insertCmd.CommandText = $"INSERT INTO {schemaName}.conduit (id, interest_id, outer_diameter) VALUES (@id, @interest_id, @outer_diameter)";
+            insertCmd.CommandText = $"INSERT INTO {schemaName}.span_equipment (id, interest_id, outer_diameter, is_cable, name, spec_name) VALUES (@id, @interest_id, @outer_diameter, @is_cable, @name, @spec_name)";
 
             var idParam = insertCmd.Parameters.Add("id", NpgsqlTypes.NpgsqlDbType.Uuid);
             var interestIdparam = insertCmd.Parameters.Add("interest_id", NpgsqlTypes.NpgsqlDbType.Uuid);
             var outerDiameterParam = insertCmd.Parameters.Add("outer_diameter", NpgsqlTypes.NpgsqlDbType.Integer);
+            var isCableParam = insertCmd.Parameters.Add("is_cable", NpgsqlTypes.NpgsqlDbType.Boolean);
 
-            idParam.Value = id;
-            interestIdparam.Value = interestId;
+            idParam.Value = spanEquipment.Id;
+            interestIdparam.Value = spanEquipment.WalkOfInterestId;
             outerDiameterParam.Value = outerDiameter;
+            isCableParam.Value = spanEquipment.IsCable;
 
             insertCmd.ExecuteNonQuery();
         }
 
-        public void DeleteSpanEquipmentFromConduitTable(string schemaName, Guid spanEquipmentId)
+        public void DeleteSpanEquipment(string schemaName, Guid spanEquipmentId)
         {
             using (var conn = GetConnection() as NpgsqlConnection)
             {
                 conn.Open();
-                using (var deleteCmd = new NpgsqlCommand($"DELETE FROM {schemaName}.conduit WHERE id = @i", conn))
+                using (var deleteCmd = new NpgsqlCommand($"DELETE FROM {schemaName}.span_equipment WHERE id = @i", conn))
                 {
                     var idparam = deleteCmd.Parameters.Add("i", NpgsqlTypes.NpgsqlDbType.Uuid);
                     idparam.Value = spanEquipmentId;
@@ -151,26 +153,26 @@ namespace OpenFTTH.RelationalProjector.Database
             }
         }
 
-        public void BulkCopyIntoConduitTable(string schemaName, ProjektorState state)
+        public void BulkCopyIntoSpanEquipment(string schemaName, ProjektorState state)
         {
             using (var conn = GetConnection() as NpgsqlConnection)
             {
                 conn.Open();
 
                 // Truncate the table
-                using (var truncateCmd = new NpgsqlCommand($"truncate table {schemaName}.conduit", conn))
+                using (var truncateCmd = new NpgsqlCommand($"truncate table {schemaName}.span_equipment", conn))
                 {
                     truncateCmd.ExecuteNonQuery();
                 }
 
-                using (var writer = conn.BeginBinaryImport($"copy {schemaName}.conduit (id, interest_id, outer_diameter) from STDIN (FORMAT BINARY)"))
+                using (var writer = conn.BeginBinaryImport($"copy {schemaName}.span_equipment (id, interest_id, outer_diameter, is_cable, name, spec_name) from STDIN (FORMAT BINARY)"))
                 {
-                    foreach (var spanEquipment in state.SpanEquipmentStates.Where(s => !s.IsCable))
+                    foreach (var spanEquipment in state.SpanEquipmentStates)
                     {
                         var spanEquipmentSpecification = state.GetSpanEquipmentSpecification(spanEquipment.SpecificationId);
                         var spanStructureSpecification = state.GetSpanStructureSpecification(spanEquipmentSpecification.RootTemplate.SpanStructureSpecificationId);
 
-                        writer.WriteRow(spanEquipment.Id, spanEquipment.WalkOfInterestId, spanStructureSpecification.OuterDiameter.Value);
+                        writer.WriteRow(spanEquipment.Id, spanEquipment.WalkOfInterestId, spanStructureSpecification.OuterDiameter.Value, spanEquipment.IsCable, spanEquipment.Name, spanEquipmentSpecification.Name);
                     }
 
                     writer.Complete();
@@ -180,12 +182,12 @@ namespace OpenFTTH.RelationalProjector.Database
         }
 
 
-        public void UpdateSpanEquipmentDiameterInConduitTable(string schemaName, Guid spanEquipmentId, int diameter)
+        public void UpdateSpanEquipmentDiameter(string schemaName, Guid spanEquipmentId, int diameter)
         {
             using (var conn = GetConnection() as NpgsqlConnection)
             {
                 conn.Open();
-                using (var updateCmd = new NpgsqlCommand($"UPDATE {schemaName}.conduit SET outer_diameter = @d WHERE id = @i", conn))
+                using (var updateCmd = new NpgsqlCommand($"UPDATE {schemaName}.span_equipment SET outer_diameter = @d WHERE id = @i", conn))
                 {
                     var idParam = updateCmd.Parameters.Add("i", NpgsqlTypes.NpgsqlDbType.Uuid);
                     idParam.Value = spanEquipmentId;
@@ -389,14 +391,19 @@ namespace OpenFTTH.RelationalProjector.Database
 	                coord,
 	                (
 	                select 
-	                  string_agg(cast(n_conduit as text) || ' stk Ø' || cast(outer_diameter as text),', ')
+	                   string_agg(
+						  case 
+						    when outer_diameter = 0 then cast(n_conduit as text) || ' stk kabel'
+						    else cast(n_conduit as text) || ' stk Ø' || cast(outer_diameter as text)
+						  end
+					  ,', ')
 	                from
 	                (
 		                select i2r.route_network_element_id, outer_diameter, count(*) as n_conduit
 		                from utility_network.rel_interest_to_route_element i2r
-		                inner join utility_network.conduit on conduit.interest_id = i2r.interest_id
-		                group by i2r.route_network_element_id, conduit.outer_diameter
-		                order by i2r.route_network_element_id, conduit.outer_diameter
+		                inner join utility_network.span_equipment on span_equipment.interest_id = i2r.interest_id
+		                group by i2r.route_network_element_id, span_equipment.outer_diameter
+		                order by i2r.route_network_element_id, span_equipment.outer_diameter
 	                ) coduit_label 
 	                where 
 	                  route_network_element_id = mrid

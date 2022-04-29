@@ -62,7 +62,7 @@ namespace OpenFTTH.RelationalProjector
         {
             _dbWriter.CreateSchema(_schemaName);
             _dbWriter.CreateRouteElementToInterestTable(_schemaName);
-            _dbWriter.CreateConduitTable(_schemaName);
+            _dbWriter.CreateSpanEquipmentTable(_schemaName);
             _dbWriter.CreateRouteSegmentLabelView(_schemaName);
             _dbWriter.CreateServiceTerminationTable(_schemaName);
             _dbWriter.CreateConduitSlackTable(_schemaName);
@@ -210,8 +210,7 @@ namespace OpenFTTH.RelationalProjector
                 var spanEquipmentSpec = _state.GetSpanEquipmentSpecification(@event.Equipment.SpecificationId);
                 var structureSpec = _state.GetSpanStructureSpecification(spanEquipmentSpec.RootTemplate.SpanStructureSpecificationId);
 
-                if (!@event.Equipment.IsCable)
-                    _dbWriter.InsertSpanEquipmentIntoConduitTable(_schemaName, @event.Equipment.Id, @event.Equipment.WalkOfInterestId, structureSpec.OuterDiameter.Value);
+                _dbWriter.InsertSpanEquipment(_schemaName, @event.Equipment, spanEquipmentSpec, structureSpec.OuterDiameter.Value);
             }
         }
 
@@ -222,7 +221,7 @@ namespace OpenFTTH.RelationalProjector
                 if (!_bulkMode)
                 {
                     if (!spanEquipmentState.IsCable)
-                        _dbWriter.DeleteSpanEquipmentFromConduitTable(_schemaName, @event.SpanEquipmentId);
+                        _dbWriter.DeleteSpanEquipment(_schemaName, @event.SpanEquipmentId);
                 }
 
                 _state.ProcessSpanEquipmentRemoved(@event.SpanEquipmentId);
@@ -241,7 +240,7 @@ namespace OpenFTTH.RelationalProjector
             {
                 var outerDiameter = _state.GetSpanStructureSpecification(_state.GetSpanEquipmentSpecification(@event.NewSpecificationId).RootTemplate.SpanStructureSpecificationId).OuterDiameter;
 
-                _dbWriter.UpdateSpanEquipmentDiameterInConduitTable(_schemaName, @event.SpanEquipmentId, outerDiameter.Value);
+                _dbWriter.UpdateSpanEquipmentDiameter(_schemaName, @event.SpanEquipmentId, outerDiameter.Value);
             }
         }
 
@@ -274,8 +273,8 @@ namespace OpenFTTH.RelationalProjector
             _logger.LogInformation($"Writing service terminations...");
             _dbWriter.BulkCopyIntoServiceTerminationTable(_schemaName, _state);
 
-            _logger.LogInformation($"Writing conduits...");
-            _dbWriter.BulkCopyIntoConduitTable(_schemaName, _state);
+            _logger.LogInformation($"Writing span equipments...");
+            _dbWriter.BulkCopyIntoSpanEquipment(_schemaName, _state);
 
             _logger.LogInformation($"Writing conduit slacks...");
             _dbWriter.BulkCopyIntoConduitSlackTable(_schemaName, _state);

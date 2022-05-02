@@ -130,11 +130,16 @@ namespace OpenFTTH.RelationalProjector.Database
             var interestIdparam = insertCmd.Parameters.Add("interest_id", NpgsqlTypes.NpgsqlDbType.Uuid);
             var outerDiameterParam = insertCmd.Parameters.Add("outer_diameter", NpgsqlTypes.NpgsqlDbType.Integer);
             var isCableParam = insertCmd.Parameters.Add("is_cable", NpgsqlTypes.NpgsqlDbType.Boolean);
+            var nameParam = insertCmd.Parameters.Add("name", NpgsqlTypes.NpgsqlDbType.Integer);
+            var specNameParam = insertCmd.Parameters.Add("spec_name", NpgsqlTypes.NpgsqlDbType.Boolean);
+
 
             idParam.Value = spanEquipment.Id;
             interestIdparam.Value = spanEquipment.WalkOfInterestId;
             outerDiameterParam.Value = outerDiameter;
             isCableParam.Value = spanEquipment.IsCable;
+            nameParam.Value = spanEquipment.Name;
+            specNameParam.Value = spanEquipmentSpecification.Name;
 
             insertCmd.ExecuteNonQuery();
         }

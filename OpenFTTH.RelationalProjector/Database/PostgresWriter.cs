@@ -108,12 +108,12 @@ namespace OpenFTTH.RelationalProjector.Database
             // Create table
             string createTableCmdText = $"CREATE UNLOGGED TABLE IF NOT EXISTS {schemaName}.span_equipment (id uuid, interest_id uuid, outer_diameter integer, is_cable boolean, name character varying(255), spec_name character varying(255), PRIMARY KEY(id));";
             _logger.LogDebug($"Execute SQL: {createTableCmdText}");
-            
+
             RunDbCommand(transaction, createTableCmdText);
 
             // Create index on interest_id column
-           string createIndexCmdText = $"CREATE INDEX IF NOT EXISTS idx_span_equipment_interest_id ON {schemaName}.span_equipment(interest_id);";
-           RunDbCommand(transaction, createIndexCmdText);
+            string createIndexCmdText = $"CREATE INDEX IF NOT EXISTS idx_span_equipment_interest_id ON {schemaName}.span_equipment(interest_id);";
+            RunDbCommand(transaction, createIndexCmdText);
         }
 
         public void InsertSpanEquipment(string schemaName, SpanEquipment spanEquipment, SpanEquipmentSpecification spanEquipmentSpecification, int outerDiameter)
@@ -130,9 +130,8 @@ namespace OpenFTTH.RelationalProjector.Database
             var interestIdparam = insertCmd.Parameters.Add("interest_id", NpgsqlTypes.NpgsqlDbType.Uuid);
             var outerDiameterParam = insertCmd.Parameters.Add("outer_diameter", NpgsqlTypes.NpgsqlDbType.Integer);
             var isCableParam = insertCmd.Parameters.Add("is_cable", NpgsqlTypes.NpgsqlDbType.Boolean);
-            var nameParam = insertCmd.Parameters.Add("name", NpgsqlTypes.NpgsqlDbType.Integer);
-            var specNameParam = insertCmd.Parameters.Add("spec_name", NpgsqlTypes.NpgsqlDbType.Boolean);
-
+            var nameParam = insertCmd.Parameters.Add("name", NpgsqlTypes.NpgsqlDbType.Varchar);
+            var specNameParam = insertCmd.Parameters.Add("spec_name", NpgsqlTypes.NpgsqlDbType.Varchar);
 
             idParam.Value = spanEquipment.Id;
             interestIdparam.Value = spanEquipment.WalkOfInterestId;
@@ -205,7 +204,7 @@ namespace OpenFTTH.RelationalProjector.Database
             }
         }
 
-      
+
 
         #endregion
 

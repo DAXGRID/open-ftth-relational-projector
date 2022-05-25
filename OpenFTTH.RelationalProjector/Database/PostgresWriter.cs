@@ -7,9 +7,6 @@ using OpenFTTH.UtilityGraphService.API.Model.UtilityNetwork;
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OpenFTTH.RelationalProjector.Database
 {
@@ -36,7 +33,6 @@ namespace OpenFTTH.RelationalProjector.Database
             string createIndexCmdText = $"CREATE INDEX IF NOT EXISTS idx_rel_interest_to_route_element_route_network_element_id ON {schemaName}.rel_interest_to_route_element(route_network_element_id);";
             RunDbCommand(transaction, createIndexCmdText);
         }
-
 
         public void BulkCopyGuidsToRouteElementToInterestTable(string schemaName, ProjektorState state)
         {
@@ -99,8 +95,8 @@ namespace OpenFTTH.RelationalProjector.Database
                 }
             }
         }
-
         #endregion
+
 
         #region Span Equipment table
         public void CreateSpanEquipmentTable(string schemaName, IDbTransaction transaction = null)
@@ -185,7 +181,6 @@ namespace OpenFTTH.RelationalProjector.Database
 
         }
 
-
         public void UpdateSpanEquipmentDiameter(string schemaName, Guid spanEquipmentId, int diameter)
         {
             using (var conn = GetConnection() as NpgsqlConnection)
@@ -203,10 +198,8 @@ namespace OpenFTTH.RelationalProjector.Database
                 }
             }
         }
-
-
-
         #endregion
+
 
         #region Service Termination Point
         public void CreateServiceTerminationTable(string schemaName, IDbTransaction transaction = null)
@@ -243,6 +236,38 @@ namespace OpenFTTH.RelationalProjector.Database
             insertCmd.ExecuteNonQuery();
         }
 
+        public void DeleteServiceTermination(string schemaName, Guid spanEquipmentId)
+        {
+            using (var conn = GetConnection() as NpgsqlConnection)
+            {
+                conn.Open();
+                using (var deleteCmd = new NpgsqlCommand($"DELETE FROM {schemaName}.service_termination WHERE id = @i", conn))
+                {
+                    var idparam = deleteCmd.Parameters.Add("i", NpgsqlTypes.NpgsqlDbType.Uuid);
+                    idparam.Value = spanEquipmentId;
+                    deleteCmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+        public void UpdateServiceTerminationName(string schemaName, Guid terminalEquipmentId, string name)
+        {
+            using (var conn = GetConnection() as NpgsqlConnection)
+            {
+                conn.Open();
+                using (var updateCmd = new NpgsqlCommand($"UPDATE {schemaName}.service_termination SET name = @n WHERE id = @i", conn))
+                {
+                    var idParam = updateCmd.Parameters.Add("i", NpgsqlTypes.NpgsqlDbType.Uuid);
+                    idParam.Value = terminalEquipmentId;
+
+                    var nameParam = updateCmd.Parameters.Add("n", NpgsqlTypes.NpgsqlDbType.Varchar);
+                    nameParam.Value = name;
+
+                    updateCmd.ExecuteNonQuery();
+                }
+            }
+        }
+
         public void BulkCopyIntoServiceTerminationTable(string schemaName, ProjektorState state)
         {
             using (var conn = GetConnection() as NpgsqlConnection)
@@ -267,9 +292,8 @@ namespace OpenFTTH.RelationalProjector.Database
             }
 
         }
-
-
         #endregion
+
 
         #region Conduit Slack
         public void CreateConduitSlackTable(string schemaName, IDbTransaction transaction = null)
@@ -309,8 +333,8 @@ namespace OpenFTTH.RelationalProjector.Database
             }
 
         }
-
         #endregion
+
 
         #region Generel database commands
         public IDbConnection GetConnection()
@@ -335,6 +359,7 @@ namespace OpenFTTH.RelationalProjector.Database
 
             RunDbCommand(transaction, deleteSchemaCmdText);
         }
+
         public void TruncateTable(string schemaName, string tableName, IDbTransaction trans = null)
         {
             if (trans != null)

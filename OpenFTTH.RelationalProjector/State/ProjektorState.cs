@@ -380,7 +380,7 @@ namespace OpenFTTH.RelationalProjector.State
             _terminalEquipmentSpecificationById[@event.Specification.Id] = @event.Specification;
         }
 
-        public ServiceTerminationState? ProcessServiceTerminationstAdded(TerminalEquipmentPlacedInNodeContainer @event)
+        public ServiceTerminationState? ProcessServiceTerminationAdded(TerminalEquipmentPlacedInNodeContainer @event)
         {
             // If no terminal equipment specification found, give up
             if (!_terminalEquipmentSpecificationById.TryGetValue(@event.Equipment.SpecificationId, out var terminalEquipmentSpecification))
@@ -399,6 +399,20 @@ namespace OpenFTTH.RelationalProjector.State
             
             return serviceTerminationState;
         }
+
+        public ServiceTerminationState? ProcessTerminalEquipmentNamingInfoChanged(TerminalEquipmentNamingInfoChanged @event)
+        {
+            if (_serviceTerminationStateByEquipmentId.ContainsKey(@event.TerminalEquipmentId))
+            {
+                var serviceTermination = _serviceTerminationStateByEquipmentId[@event.TerminalEquipmentId];
+                serviceTermination.Name = @event.NamingInfo?.Name;
+
+                return serviceTermination;
+            }
+
+            return null;
+        }
+
 
         public void ProcessTerminalEquipmentRemoved(Guid terminalEquipmentId)
         {

@@ -151,11 +151,13 @@ namespace OpenFTTH.RelationalProjector
                     Handle(@event);
                     break;
 
-                /*
                 case (TerminalEquipmentRemoved @event):
                     Handle(@event);
                     break;
-                */
+
+                case (TerminalEquipmentNamingInfoChanged @event):
+                    Handle(@event);
+                    break;
             }
         }
 
@@ -251,11 +253,31 @@ namespace OpenFTTH.RelationalProjector
         
         private void Handle(TerminalEquipmentPlacedInNodeContainer @event)
         {
-            var serviceTerminationState = _state.ProcessServiceTerminationstAdded(@event);
+            var serviceTerminationState = _state.ProcessServiceTerminationAdded(@event);
 
             if (serviceTerminationState != null && !_bulkMode)
             {
                _dbWriter.InsertIntoServiceTerminationTable(_schemaName, serviceTerminationState);
+            }
+        }
+
+        private void Handle(TerminalEquipmentRemoved @event)
+        {
+            _state.ProcessTerminalEquipmentRemoved(@event.TerminalEquipmentId);
+
+            if (!_bulkMode)
+            {
+                _dbWriter.DeleteServiceTermination(_schemaName, @event.TerminalEquipmentId);
+            }
+        }
+
+        private void Handle(TerminalEquipmentNamingInfoChanged @event)
+        {
+            var serviceTerminationState = _state.ProcessTerminalEquipmentNamingInfoChanged(@event);
+
+            if (serviceTerminationState != null && !_bulkMode)
+            {
+                _dbWriter.UpdateServiceTerminationName(_schemaName, @event.TerminalEquipmentId,@event.NamingInfo.Name);
             }
         }
 

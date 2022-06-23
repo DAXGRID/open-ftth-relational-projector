@@ -335,6 +335,82 @@ namespace OpenFTTH.RelationalProjector.Database
         }
         #endregion
 
+        #region Work Task
+        public void CreateWorkTaskTable(string schemaName, IDbTransaction transaction = null)
+        {
+            // Create table
+            string createTableCmdText = $"CREATE UNLOGGED TABLE IF NOT EXISTS {schemaName}.work_task (id uuid, status character varying(255), PRIMARY KEY(id));";
+            _logger.LogDebug($"Execute SQL: {createTableCmdText}");
+
+            RunDbCommand(transaction, createTableCmdText);
+        }
+
+        public void InsertIntoWorkTaskTable(string schemaName, WorkTaskState workTaskState)
+        {
+            using var conn = GetConnection() as NpgsqlConnection;
+
+            conn.Open();
+
+            using var insertCmd = conn.CreateCommand();
+
+            insertCmd.CommandText = $"INSERT INTO {schemaName}.work_task (id, status) VALUES (@id, @status)";
+
+            var idParam = insertCmd.Parameters.Add("id", NpgsqlTypes.NpgsqlDbType.Uuid);
+            var statusParam = insertCmd.Parameters.Add("status", NpgsqlTypes.NpgsqlDbType.Varchar);
+
+            idParam.Value = workTaskState.Id;
+            statusParam.Value = workTaskState.Status;
+
+            insertCmd.ExecuteNonQuery();
+        }
+
+        public void UpdateWorkTaskStatus(string schemaName, Guid workTaskId, string status)
+        {
+            using (var conn = GetConnection() as NpgsqlConnection)
+            {
+                conn.Open();
+                using (var updateCmd = new NpgsqlCommand($"UPDATE {schemaName}.work_task SET status = @n WHERE id = @i", conn))
+                {
+                    var idParam = updateCmd.Parameters.Add("i", NpgsqlTypes.NpgsqlDbType.Uuid);
+                    idParam.Value = workTaskId;
+
+                    var statusParam = updateCmd.Parameters.Add("n", NpgsqlTypes.NpgsqlDbType.Varchar);
+                    statusParam.Value = status;
+
+                    updateCmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+
+        public void BulkCopyIntoWorkTaskTable(string schemaName, ProjektorState state)
+        {
+            using (var conn = GetConnection() as NpgsqlConnection)
+            {
+                conn.Open();
+
+                // Truncate the table
+                using (var truncateCmd = new NpgsqlCommand($"truncate table {schemaName}.work_task", conn))
+                {
+                    truncateCmd.ExecuteNonQuery();
+                }
+
+                using (var writer = conn.BeginBinaryImport($"copy {schemaName}.work_task (id, status) from STDIN (FORMAT BINARY)"))
+                {
+                    foreach (var workTask in state.WorkTaskStates)
+                    {
+                        writer.WriteRow(workTask.Id, workTask.Status);
+                    }
+
+                    writer.Complete();
+                }
+            }
+
+        }
+
+
+        #endregion
+
 
         #region Generel database commands
         public IDbConnection GetConnection()
@@ -506,6 +582,44 @@ namespace OpenFTTH.RelationalProjector.Database
                   order by
 	                route_segment.mrid
                 ";
+            _logger.LogDebug($"Execute SQL: {createViewCmdText}");
+
+            RunDbCommand(transaction, createViewCmdText);
+        }
+
+        public void CreateRouteSegmentTaskStatusView(string schemaName, IDbTransaction transaction = null)
+        {
+            // Create view
+            string createViewCmdText = @"
+                CREATE OR REPLACE VIEW " + schemaName + @".route_segment_with_task_status AS 
+                select 
+                  *,
+                  work_task.status as work_task_status
+                from 
+                  route_network.route_segment
+                left outer join utility_network.work_task on work_task.id = route_segment.work_task_mrid
+             ";
+
+            _logger.LogDebug($"Execute SQL: {createViewCmdText}");
+
+            RunDbCommand(transaction, createViewCmdText);
+        }
+
+
+        public void CreateRouteNodeTaskStatusView(string schemaName, IDbTransaction transaction = null)
+        {
+            // Create view
+            string createViewCmdText = @"
+               CREATE OR REPLACE VIEW " + schemaName + @".route_node_with_task_status
+                 AS
+                select 
+                  *,
+                  work_task.status as work_task_status
+                from 
+                  route_network.route_node
+                left outer join utility_network.work_task on work_task.id = route_node.work_task_mrid     
+             ";
+
             _logger.LogDebug($"Execute SQL: {createViewCmdText}");
 
             RunDbCommand(transaction, createViewCmdText);

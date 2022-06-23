@@ -7,6 +7,7 @@ using OpenFTTH.RouteNetwork.Business.Interest.Events;
 using OpenFTTH.UtilityGraphService.Business.NodeContainers.Events;
 using OpenFTTH.UtilityGraphService.Business.SpanEquipments.Events;
 using OpenFTTH.UtilityGraphService.Business.TerminalEquipments.Events;
+using OpenFTTH.Work.Business.Events;
 using System;
 using System.Collections.Generic;
 
@@ -56,6 +57,10 @@ namespace OpenFTTH.RelationalProjector
             ProjectEvent<TerminalEquipmentPlacedInNodeContainer>(Project);
             ProjectEvent<TerminalEquipmentRemoved>(Project);
             ProjectEvent<TerminalEquipmentNamingInfoChanged>(Project);
+
+            // Work tasks
+            ProjectEvent<WorkTaskCreated>(Project);
+            ProjectEvent<WorkTaskStatusChanged>(Project);
         }
 
         private void PrepareDatabase()
@@ -66,8 +71,11 @@ namespace OpenFTTH.RelationalProjector
             _dbWriter.CreateRouteSegmentLabelView(_schemaName);
             _dbWriter.CreateServiceTerminationTable(_schemaName);
             _dbWriter.CreateConduitSlackTable(_schemaName);
+            _dbWriter.CreateWorkTaskTable(_schemaName);
             _dbWriter.CreateRouteNodeView(_schemaName);
             _dbWriter.CreateRouteSegmentView(_schemaName);
+            _dbWriter.CreateRouteSegmentTaskStatusView(_schemaName);
+            _dbWriter.CreateRouteNodeTaskStatusView(_schemaName);
         }
 
         private void Project(IEventEnvelope eventEnvelope)
@@ -156,6 +164,15 @@ namespace OpenFTTH.RelationalProjector
                     break;
 
                 case (TerminalEquipmentNamingInfoChanged @event):
+                    Handle(@event);
+                    break;
+
+                // Work tasks
+                case (WorkTaskCreated @event):
+                    Handle(@event);
+                    break;
+
+                case (WorkTaskStatusChanged @event):
                     Handle(@event);
                     break;
             }
@@ -283,6 +300,31 @@ namespace OpenFTTH.RelationalProjector
 
         #endregion
 
+        #region Work Task Events
+
+        private void Handle(WorkTaskCreated @event)
+        {
+            var serviceTerminationState = _state.ProcessWorkTaskCreated(@event);
+
+            if (serviceTerminationState != null && !_bulkMode)
+            {
+                _dbWriter.InsertIntoWorkTaskTable(_schemaName, serviceTerminationState);
+            }
+        }
+
+        private void Handle(WorkTaskStatusChanged @event)
+        {
+            var workTasktate = _state.ProcessWorkTaskStatusChanged(@event);
+
+            if (workTasktate != null && !_bulkMode)
+            {
+                _dbWriter.UpdateWorkTaskStatus(_schemaName, @event.WorkTaskId, @event.Status);
+            }
+        }
+
+
+        #endregion
+
         public override void DehydrationFinish()
         {
             PrepareDatabase();
@@ -300,6 +342,9 @@ namespace OpenFTTH.RelationalProjector
 
             _logger.LogInformation($"Writing conduit slacks...");
             _dbWriter.BulkCopyIntoConduitSlackTable(_schemaName, _state);
+
+            _logger.LogInformation($"Writing work tasks...");
+            _dbWriter.BulkCopyIntoWorkTaskTable(_schemaName, _state);
 
             _bulkMode = false;
 

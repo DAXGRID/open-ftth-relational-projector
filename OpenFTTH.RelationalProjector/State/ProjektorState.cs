@@ -3,6 +3,7 @@ using OpenFTTH.UtilityGraphService.API.Model.UtilityNetwork;
 using OpenFTTH.UtilityGraphService.Business.NodeContainers.Events;
 using OpenFTTH.UtilityGraphService.Business.SpanEquipments.Events;
 using OpenFTTH.UtilityGraphService.Business.TerminalEquipments.Events;
+using OpenFTTH.Work.Business.Events;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -419,6 +420,39 @@ namespace OpenFTTH.RelationalProjector.State
             if (_serviceTerminationStateByEquipmentId.ContainsKey(terminalEquipmentId))
                 _serviceTerminationStateByEquipmentId.Remove(terminalEquipmentId);
         }
+
+        #endregion
+
+        #region Work Task Information
+        private Dictionary<Guid, WorkTaskState> _workTaskStateById = new();
+        public IEnumerable<WorkTaskState> WorkTaskStates => _workTaskStateById.Values;
+
+        public WorkTaskState? ProcessWorkTaskCreated(WorkTaskCreated @event)
+        {
+            if (String.IsNullOrEmpty(@event.WorkTask.Status))
+                return null;
+                
+            var workTaskState = WorkTaskState.Create(@event);
+            _workTaskStateById[@event.WorkTaskId.Value] = workTaskState;
+
+            return workTaskState;
+        }
+
+        public WorkTaskState? ProcessWorkTaskStatusChanged(WorkTaskStatusChanged @event)
+        {
+            if (_workTaskStateById.ContainsKey(@event.WorkTaskId))
+            {
+                var workTask = _workTaskStateById[@event.WorkTaskId];
+                workTask.Status = @event.Status;
+
+                return workTask;
+            }
+
+            return null;
+        }
+
+
+
 
         #endregion
 

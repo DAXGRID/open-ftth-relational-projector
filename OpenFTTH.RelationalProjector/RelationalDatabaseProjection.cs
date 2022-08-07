@@ -10,6 +10,7 @@ using OpenFTTH.UtilityGraphService.Business.TerminalEquipments.Events;
 using OpenFTTH.Work.Business.Events;
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace OpenFTTH.RelationalProjector
 {
@@ -30,37 +31,37 @@ namespace OpenFTTH.RelationalProjector
             _dbWriter = dbWriter;
 
             // Node container events
-            ProjectEvent<NodeContainerPlacedInRouteNetwork>(Project);
-            ProjectEvent<NodeContainerRemovedFromRouteNetwork>(Project);
+            ProjectEventAsync<NodeContainerPlacedInRouteNetwork>(Project);
+            ProjectEventAsync<NodeContainerRemovedFromRouteNetwork>(Project);
 
             // Interest events
-            ProjectEvent<WalkOfInterestRegistered>(Project);
-            ProjectEvent<WalkOfInterestRouteNetworkElementsModified>(Project);
-            ProjectEvent<InterestUnregistered>(Project);
+            ProjectEventAsync<WalkOfInterestRegistered>(Project);
+            ProjectEventAsync<WalkOfInterestRouteNetworkElementsModified>(Project);
+            ProjectEventAsync<InterestUnregistered>(Project);
 
             // Span equipment events
-            ProjectEvent<SpanEquipmentPlacedInRouteNetwork>(Project);
-            ProjectEvent<SpanEquipmentMoved>(Project);
-            ProjectEvent<SpanEquipmentRemoved>(Project);
-            ProjectEvent<SpanSegmentsConnectedToSimpleTerminals>(Project);
-            ProjectEvent<SpanSegmentsDisconnectedFromTerminals>(Project);
-            ProjectEvent<SpanEquipmentAffixedToParent>(Project);
-            ProjectEvent<SpanEquipmentDetachedFromParent>(Project);
+            ProjectEventAsync<SpanEquipmentPlacedInRouteNetwork>(Project);
+            ProjectEventAsync<SpanEquipmentMoved>(Project);
+            ProjectEventAsync<SpanEquipmentRemoved>(Project);
+            ProjectEventAsync<SpanSegmentsConnectedToSimpleTerminals>(Project);
+            ProjectEventAsync<SpanSegmentsDisconnectedFromTerminals>(Project);
+            ProjectEventAsync<SpanEquipmentAffixedToParent>(Project);
+            ProjectEventAsync<SpanEquipmentDetachedFromParent>(Project);
 
             // Span equipment specification events
-            ProjectEvent<SpanEquipmentSpecificationAdded>(Project);
-            ProjectEvent<SpanStructureSpecificationAdded>(Project);
-            ProjectEvent<SpanEquipmentSpecificationChanged>(Project);
+            ProjectEventAsync<SpanEquipmentSpecificationAdded>(Project);
+            ProjectEventAsync<SpanStructureSpecificationAdded>(Project);
+            ProjectEventAsync<SpanEquipmentSpecificationChanged>(Project);
 
             // Terminal equipment events
-            ProjectEvent<TerminalEquipmentSpecificationAdded>(Project);
-            ProjectEvent<TerminalEquipmentPlacedInNodeContainer>(Project);
-            ProjectEvent<TerminalEquipmentRemoved>(Project);
-            ProjectEvent<TerminalEquipmentNamingInfoChanged>(Project);
+            ProjectEventAsync<TerminalEquipmentSpecificationAdded>(Project);
+            ProjectEventAsync<TerminalEquipmentPlacedInNodeContainer>(Project);
+            ProjectEventAsync<TerminalEquipmentRemoved>(Project);
+            ProjectEventAsync<TerminalEquipmentNamingInfoChanged>(Project);
 
             // Work tasks
-            ProjectEvent<WorkTaskCreated>(Project);
-            ProjectEvent<WorkTaskStatusChanged>(Project);
+            ProjectEventAsync<WorkTaskCreated>(Project);
+            ProjectEventAsync<WorkTaskStatusChanged>(Project);
         }
 
         private void PrepareDatabase()
@@ -78,7 +79,7 @@ namespace OpenFTTH.RelationalProjector
             _dbWriter.CreateRouteNodeTaskStatusView(_schemaName);
         }
 
-        private void Project(IEventEnvelope eventEnvelope)
+        private Task Project(IEventEnvelope eventEnvelope)
         {
             switch (eventEnvelope.Data)
             {
@@ -176,6 +177,8 @@ namespace OpenFTTH.RelationalProjector
                     Handle(@event);
                     break;
             }
+
+            return Task.CompletedTask;
         }
 
         #region Interest events
@@ -267,14 +270,14 @@ namespace OpenFTTH.RelationalProjector
         #endregion
 
         #region Terminal equipment events
-        
+
         private void Handle(TerminalEquipmentPlacedInNodeContainer @event)
         {
             var serviceTerminationState = _state.ProcessServiceTerminationAdded(@event);
 
             if (serviceTerminationState != null && !_bulkMode)
             {
-               _dbWriter.InsertIntoServiceTerminationTable(_schemaName, serviceTerminationState);
+                _dbWriter.InsertIntoServiceTerminationTable(_schemaName, serviceTerminationState);
             }
         }
 
@@ -294,7 +297,7 @@ namespace OpenFTTH.RelationalProjector
 
             if (serviceTerminationState != null && !_bulkMode)
             {
-                _dbWriter.UpdateServiceTerminationName(_schemaName, @event.TerminalEquipmentId,@event.NamingInfo.Name);
+                _dbWriter.UpdateServiceTerminationName(_schemaName, @event.TerminalEquipmentId, @event.NamingInfo.Name);
             }
         }
 
@@ -325,7 +328,7 @@ namespace OpenFTTH.RelationalProjector
 
         #endregion
 
-        public override void DehydrationFinish()
+        public override Task DehydrationFinishAsync()
         {
             PrepareDatabase();
 
@@ -349,6 +352,8 @@ namespace OpenFTTH.RelationalProjector
             _bulkMode = false;
 
             _logger.LogInformation("Bulk write finish.");
+
+            return Task.CompletedTask;
         }
 
         private IEnumerable<Guid> RemoveDublicatedIds(RouteNetworkElementIdList routeNetworkElementRefs)

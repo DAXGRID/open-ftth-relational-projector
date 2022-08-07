@@ -35,12 +35,12 @@ namespace OpenFTTH.RelationalProjector
 
             while (!stoppingToken.IsCancellationRequested)
             {
-                Thread.Sleep(2000);
-
                 var eventsProcessed = await _eventStore.CatchUpAsync(stoppingToken).ConfigureAwait(false);
 
                 if (eventsProcessed > 0)
                     _logger.LogInformation($"Processed {eventsProcessed} new events.");
+
+                await Task.Delay(2000, stoppingToken).ConfigureAwait(false);
             }
         }
 

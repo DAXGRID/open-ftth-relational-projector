@@ -19,7 +19,7 @@ namespace OpenFTTH.RelationalProjector
             _eventStore = eventStore;
         }
 
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        protected override Task ExecuteAsync(CancellationToken stoppingToken)
         {
             _logger.LogInformation("Starting relational projector worker at: {time}", DateTimeOffset.Now);
 
@@ -43,14 +43,14 @@ namespace OpenFTTH.RelationalProjector
                     _logger.LogInformation($"Processed {eventsProcessed} new events.");
             }
 
-            await Task.CompletedTask;
+            return Task.CompletedTask;
         }
 
-        public override async Task StopAsync(CancellationToken stoppingToken)
+        public override Task StopAsync(CancellationToken stoppingToken)
         {
             _logger.LogInformation("Stopping background worker");
 
-            await Task.CompletedTask;
+            return Task.CompletedTask;
         }
     }
 }

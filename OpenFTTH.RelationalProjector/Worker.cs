@@ -25,7 +25,7 @@ namespace OpenFTTH.RelationalProjector
 
             _logger.LogInformation("Start reading all events...");
 
-            _eventStore.DehydrateProjections();
+            await _eventStore.DehydrateProjectionsAsync(stoppingToken).ConfigureAwait(false);
 
             _logger.LogInformation("Initial event processing finish.");
             _logger.LogInformation("Start listning for new events...");
@@ -35,22 +35,20 @@ namespace OpenFTTH.RelationalProjector
 
             while (!stoppingToken.IsCancellationRequested)
             {
-                Thread.Sleep(2000);
-
-                var eventsProcessed = _eventStore.CatchUp();
+                var eventsProcessed = await _eventStore.CatchUpAsync(stoppingToken).ConfigureAwait(false);
 
                 if (eventsProcessed > 0)
                     _logger.LogInformation($"Processed {eventsProcessed} new events.");
-            }
 
-            await Task.CompletedTask;
+                await Task.Delay(2000, stoppingToken).ConfigureAwait(false);
+            }
         }
 
-        public override async Task StopAsync(CancellationToken stoppingToken)
+        public override Task StopAsync(CancellationToken stoppingToken)
         {
             _logger.LogInformation("Stopping background worker");
 
-            await Task.CompletedTask;
+            return Task.CompletedTask;
         }
     }
 }

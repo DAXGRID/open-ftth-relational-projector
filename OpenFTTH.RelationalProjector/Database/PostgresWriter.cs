@@ -24,7 +24,7 @@ namespace OpenFTTH.RelationalProjector.Database
         #region Route network element to interest relation table (rel_interest_to_route_element)
         public void CreateRouteElementToInterestTable(string schemaName, IDbTransaction transaction = null)
         {
-            string createTableCmdText = $"CREATE UNLOGGED TABLE IF NOT EXISTS {schemaName}.rel_interest_to_route_element (interest_id uuid, route_network_element_id uuid, PRIMARY KEY(interest_id, route_network_element_id));";
+            string createTableCmdText = $"CREATE TABLE IF NOT EXISTS {schemaName}.rel_interest_to_route_element (interest_id uuid, route_network_element_id uuid, PRIMARY KEY(interest_id, route_network_element_id));";
             _logger.LogDebug($"Execute SQL: {createTableCmdText}");
 
             RunDbCommand(transaction, createTableCmdText);
@@ -102,7 +102,7 @@ namespace OpenFTTH.RelationalProjector.Database
         public void CreateSpanEquipmentTable(string schemaName, IDbTransaction transaction = null)
         {
             // Create table
-            string createTableCmdText = $"CREATE UNLOGGED TABLE IF NOT EXISTS {schemaName}.span_equipment (id uuid, interest_id uuid, outer_diameter integer, is_cable boolean, name character varying(255), spec_name character varying(255), PRIMARY KEY(id));";
+            string createTableCmdText = $"CREATE TABLE IF NOT EXISTS {schemaName}.span_equipment (id uuid, interest_id uuid, outer_diameter integer, is_cable boolean, name character varying(255), spec_name character varying(255), PRIMARY KEY(id));";
             _logger.LogDebug($"Execute SQL: {createTableCmdText}");
 
             RunDbCommand(transaction, createTableCmdText);
@@ -205,7 +205,7 @@ namespace OpenFTTH.RelationalProjector.Database
         public void CreateServiceTerminationTable(string schemaName, IDbTransaction transaction = null)
         {
             // Create table
-            string createTableCmdText = $"CREATE UNLOGGED TABLE IF NOT EXISTS {schemaName}.service_termination (id uuid, route_node_id uuid, name character varying(255), PRIMARY KEY(id));";
+            string createTableCmdText = $"CREATE TABLE IF NOT EXISTS {schemaName}.service_termination (id uuid, route_node_id uuid, name character varying(255), PRIMARY KEY(id));";
             _logger.LogDebug($"Execute SQL: {createTableCmdText}");
 
             RunDbCommand(transaction, createTableCmdText);
@@ -299,7 +299,7 @@ namespace OpenFTTH.RelationalProjector.Database
         public void CreateConduitSlackTable(string schemaName, IDbTransaction transaction = null)
         {
             // Create table
-            string createTableCmdText = $"CREATE UNLOGGED TABLE IF NOT EXISTS {schemaName}.conduit_slack (id uuid, route_node_id uuid, number_of_ends integer, PRIMARY KEY(id));";
+            string createTableCmdText = $"CREATE TABLE IF NOT EXISTS {schemaName}.conduit_slack (id uuid, route_node_id uuid, number_of_ends integer, PRIMARY KEY(id));";
             _logger.LogDebug($"Execute SQL: {createTableCmdText}");
 
             RunDbCommand(transaction, createTableCmdText);
@@ -339,7 +339,7 @@ namespace OpenFTTH.RelationalProjector.Database
         public void CreateWorkTaskTable(string schemaName, IDbTransaction transaction = null)
         {
             // Create table
-            string createTableCmdText = $"CREATE UNLOGGED TABLE IF NOT EXISTS {schemaName}.work_task (id uuid, status character varying(255), PRIMARY KEY(id));";
+            string createTableCmdText = $"CREATE TABLE IF NOT EXISTS {schemaName}.work_task (id uuid, status character varying(255), PRIMARY KEY(id));";
             _logger.LogDebug($"Execute SQL: {createTableCmdText}");
 
             RunDbCommand(transaction, createTableCmdText);

@@ -191,7 +191,7 @@ namespace OpenFTTH.RelationalProjector
             }
             else
             {
-                _dbWriter.InsertGuidsIntoRouteElementToInterestTable(_schemaName, @event.Interest.Id, RemoveDublicatedIds(@event.Interest.RouteNetworkElementRefs));
+                _dbWriter.InsertGuidsIntoRouteElementToInterestTable(_schemaName, @event.Interest.Id, @event.Interest.RouteNetworkElementRefs);
             }
         }
 
@@ -204,7 +204,7 @@ namespace OpenFTTH.RelationalProjector
             else
             {
                 _dbWriter.DeleteGuidsFromRouteElementToInterestTable(_schemaName, @event.InterestId);
-                _dbWriter.InsertGuidsIntoRouteElementToInterestTable(_schemaName, @event.InterestId, RemoveDublicatedIds(@event.RouteNetworkElementIds));
+                _dbWriter.InsertGuidsIntoRouteElementToInterestTable(_schemaName, @event.InterestId, @event.RouteNetworkElementIds);
             }
         }
 
@@ -354,24 +354,6 @@ namespace OpenFTTH.RelationalProjector
             _logger.LogInformation("Bulk write finish.");
 
             return Task.CompletedTask;
-        }
-
-        private IEnumerable<Guid> RemoveDublicatedIds(RouteNetworkElementIdList routeNetworkElementRefs)
-        {
-            RouteNetworkElementIdList result = new();
-
-            HashSet<Guid> alreadyAdded = new();
-
-            foreach (var id in routeNetworkElementRefs)
-            {
-                if (!alreadyAdded.Contains(id))
-                {
-                    alreadyAdded.Add(id);
-                    result.Add(id);
-                }
-            }
-
-            return result;
         }
 
     }

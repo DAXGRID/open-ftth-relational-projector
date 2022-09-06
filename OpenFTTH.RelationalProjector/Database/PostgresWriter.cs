@@ -24,14 +24,19 @@ namespace OpenFTTH.RelationalProjector.Database
         #region Route network element to interest relation table (rel_interest_to_route_element)
         public void CreateRouteElementToInterestTable(string schemaName, IDbTransaction transaction = null)
         {
-            string createTableCmdText = $"CREATE TABLE IF NOT EXISTS {schemaName}.rel_interest_to_route_element (interest_id uuid, route_network_element_id uuid, PRIMARY KEY(interest_id, route_network_element_id));";
+            string createTableCmdText = $"CREATE TABLE IF NOT EXISTS {schemaName}.rel_interest_to_route_element (interest_id uuid, route_network_element_id uuid, seq_no integer, PRIMARY KEY(interest_id, route_network_element_id, seq_no));";
             _logger.LogDebug($"Execute SQL: {createTableCmdText}");
 
             RunDbCommand(transaction, createTableCmdText);
 
             // Create index on route_network_element_id column
-            string createIndexCmdText = $"CREATE INDEX IF NOT EXISTS idx_rel_interest_to_route_element_route_network_element_id ON {schemaName}.rel_interest_to_route_element(route_network_element_id);";
-            RunDbCommand(transaction, createIndexCmdText);
+            string createIndexCmdText1 = $"CREATE INDEX IF NOT EXISTS idx_rel_interest_to_route_element_route_network_element_id ON {schemaName}.rel_interest_to_route_element(route_network_element_id);";
+            RunDbCommand(transaction, createIndexCmdText1);
+
+            // Create index on interest_id column
+            string createIndexCmdText2 = $"CREATE INDEX IF NOT EXISTS idx_rel_interest_to_route_element_interest_id ON {schemaName}.rel_interest_to_route_element(interest_id);";
+            RunDbCommand(transaction, createIndexCmdText2);
+
         }
 
         public void BulkCopyGuidsToRouteElementToInterestTable(string schemaName, ProjektorState state)
@@ -46,13 +51,16 @@ namespace OpenFTTH.RelationalProjector.Database
                     truncateCmd.ExecuteNonQuery();
                 }
 
-                using (var writer = conn.BeginBinaryImport($"copy {schemaName}.rel_interest_to_route_element (route_network_element_id, interest_id) from STDIN (FORMAT BINARY)"))
+                using (var writer = conn.BeginBinaryImport($"copy {schemaName}.rel_interest_to_route_element (route_network_element_id, interest_id, seq_no) from STDIN (FORMAT BINARY)"))
                 {
                     foreach (var walkOfInterestRouteElementRelations in state.WalkOfInterestToRouteElementRelations)
                     {
+                        int seqNo = 1;
                         foreach (var routeElementId in walkOfInterestRouteElementRelations.Value)
                         {
-                            writer.WriteRow(routeElementId, walkOfInterestRouteElementRelations.Key);
+                            writer.WriteRow(routeElementId, walkOfInterestRouteElementRelations.Key, seqNo);
+
+                            seqNo++;
                         }
                     }
 
@@ -67,16 +75,23 @@ namespace OpenFTTH.RelationalProjector.Database
             {
                 conn.Open();
                 // Write guids to table
-                using (var insertCmd = new NpgsqlCommand($"INSERT INTO {schemaName}.rel_interest_to_route_element (route_network_element_id, interest_id) VALUES (@r, @i)", conn))
+                using (var insertCmd = new NpgsqlCommand($"INSERT INTO {schemaName}.rel_interest_to_route_element (route_network_element_id, interest_id, seq_no) VALUES (@r, @i, @s)", conn))
                 {
                     var routeNetworkElementIdparam = insertCmd.Parameters.Add("r", NpgsqlTypes.NpgsqlDbType.Uuid);
                     var interestIdparam = insertCmd.Parameters.Add("i", NpgsqlTypes.NpgsqlDbType.Uuid);
+                    var seqNoparam = insertCmd.Parameters.Add("s", NpgsqlTypes.NpgsqlDbType.Integer);
+
+                    var seqNo = 1;
 
                     foreach (var guid in routeElementIds)
                     {
                         interestIdparam.Value = interestId;
                         routeNetworkElementIdparam.Value = guid;
+                        seqNoparam.Value = seqNo;
+
                         insertCmd.ExecuteNonQuery();
+
+                        seqNo++;
                     }
                 }
             }
@@ -533,17 +548,18 @@ namespace OpenFTTH.RelationalProjector.Database
 	                    ST_AsGeoJSON(ST_Transform(coord,4326)) as coord, 
 	                    case 
 	                      when inst.id is not null then 'SDU'
-                          when slack.id is not null then 'ConduitSlack'
+                          when slack.id is not null and routenode_kind not in ('HandHole','CabinetSmall','CabinetBig') then 'ConduitSlack'
 	                      else routenode_kind
 	                    end as kind,
 	                    routenode_function as function, 
 	                    case 
 	                      when inst.id is not null then inst.name
-                          when slack.id is not null then cast(cast(slack.number_of_ends as character varying) || ' stk' as character varying(255))
+                          when slack.id is not null and routenode_kind not in ('HandHole','CabinetSmall','CabinetBig') then cast(cast(slack.number_of_ends as character varying) || ' stk' as character varying(255))
 	                      else naming_name
 	                    end as name, 
 	                    mapping_method as method,
-	                    lifecycle_deployment_state
+	                    lifecycle_deployment_state,
+                        coord as coord_wkb
                       from 
 	                    route_network.route_node 
                       left outer join
@@ -554,7 +570,7 @@ namespace OpenFTTH.RelationalProjector.Database
 	                    coord is not null and
 	                    marked_to_be_deleted = false
                       order by mrid
-                ";
+            ";
             _logger.LogDebug($"Execute SQL: {createViewCmdText}");
 
             RunDbCommand(transaction, createViewCmdText);
@@ -571,7 +587,8 @@ namespace OpenFTTH.RelationalProjector.Database
 	                routesegment_kind as kind, 
 	                mapping_method as method,
 	                lifecycle_deployment_state,
-	                slabel.label as name
+	                slabel.label as name,
+                    route_segment.coord as coord_wkb
                   from 
 	                route_network.route_segment 
                   left outer join

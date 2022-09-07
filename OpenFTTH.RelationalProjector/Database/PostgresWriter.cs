@@ -500,6 +500,7 @@ namespace OpenFTTH.RelationalProjector.Database
         }
         #endregion
 
+        #region Views used for GIS map visualisation
 
         public void CreateRouteSegmentLabelView(string schemaName, IDbTransaction transaction = null)
         {
@@ -558,19 +559,25 @@ namespace OpenFTTH.RelationalProjector.Database
 	                      else naming_name
 	                    end as name, 
 	                    mapping_method as method,
-	                    lifecycle_deployment_state,
-                        coord as coord_wkb
+     				    case
+							WHEN work_task.status IS NULL THEN 'InService'::text
+							WHEN work_task.status::text = 'Udført'::text THEN 'InService'::text
+							ELSE 'Planned'::text
+						end as state
                       from 
 	                    route_network.route_node 
                       left outer join
                         utility_network.service_termination inst on inst.route_node_id = route_node.mrid
                       left outer join
                         utility_network.conduit_slack slack on slack.route_node_id = route_node.mrid
+   			     	  left outer join
+					    utility_network.work_task ON work_task.id = route_node.work_task_mrid				
                       where
 	                    coord is not null and
 	                    marked_to_be_deleted = false
-                      order by mrid
+                      order by mrid;
             ";
+
             _logger.LogDebug($"Execute SQL: {createViewCmdText}");
 
             RunDbCommand(transaction, createViewCmdText);
@@ -580,19 +587,24 @@ namespace OpenFTTH.RelationalProjector.Database
         {
             // Create view
             string createViewCmdText = @"
-                CREATE OR REPLACE VIEW " + schemaName + @".route_segment AS 
-                  select 
+               CREATE OR REPLACE VIEW " + schemaName + @".route_segment AS 
+                 select 
 	                route_segment.mrid, 
 	                ST_AsGeoJSON(ST_Transform(route_segment.coord,4326)) as coord, 
 	                routesegment_kind as kind, 
 	                mapping_method as method,
-	                lifecycle_deployment_state,
 	                slabel.label as name,
-                    route_segment.coord as coord_wkb
+					case
+							WHEN work_task.status IS NULL THEN 'InService'::text
+							WHEN work_task.status::text = 'Udført'::text THEN 'InService'::text
+							ELSE 'Planned'::text
+					end as state
                   from 
 	                route_network.route_segment 
                   left outer join
                     utility_network.route_segment_label slabel on slabel.mrid = route_segment.mrid
+  				  left outer join
+					utility_network.work_task ON work_task.id = route_segment.work_task_mrid				
                   where
 	                route_segment.coord is not null and
 	                route_segment.marked_to_be_deleted = false
@@ -622,7 +634,6 @@ namespace OpenFTTH.RelationalProjector.Database
             RunDbCommand(transaction, createViewCmdText);
         }
 
-
         public void CreateRouteNodeTaskStatusView(string schemaName, IDbTransaction transaction = null)
         {
             // Create view
@@ -641,5 +652,7 @@ namespace OpenFTTH.RelationalProjector.Database
 
             RunDbCommand(transaction, createViewCmdText);
         }
+
+        #endregion
     }
 }

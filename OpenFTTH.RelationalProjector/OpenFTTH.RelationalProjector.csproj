@@ -9,7 +9,7 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="6.0.1" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="6.0.0" />
     <PackageReference Include="OpenFTTH.Events" Version="3.1.0" />
-    <PackageReference Include="OpenFTTH.EventSourcing" Version="2.9.0" />
+    <PackageReference Include="OpenFTTH.EventSourcing" Version="2.9.1" />
     <PackageReference Include="OpenFTTH.RouteNetwork.API" Version="2.1.0" />
     <PackageReference Include="OpenFTTH.RouteNetwork.Business" Version="2.1.0" />
     <PackageReference Include="OpenFTTH.UtilityGraphService.API" Version="2.12.10" />

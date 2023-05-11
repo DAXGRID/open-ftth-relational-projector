@@ -7,7 +7,7 @@ namespace OpenFTTH.RelationalProjector.State
     /// <summary>
     /// Span equipment state needed by projection logic
     /// </summary>
-    public class SpanEquipmentState
+    public class SpanEquipmentState : ObjectState
     {
         public Guid Id { get; set; }
         public string Name { get; set; }
@@ -25,12 +25,23 @@ namespace OpenFTTH.RelationalProjector.State
         public bool HasChildSpanEquipments { get; set; }
         public Guid ChildSpanEquipmentId { get; internal set; }
 
-        public static SpanEquipmentState Create(SpanEquipment spanEquipment, SpanEquipmentSpecification spanEquipmentSpecification)
+        public Guid? AccessAddressId { get; set; }
+        public Guid? UnitAddressId { get; set; }
+        public string SpecificationName { get; set; }
+        public int? OuterDiameter { get; set; }
+
+        public SpanEquipmentState(LatestChangeType latestChangeType) : base(latestChangeType)
         {
-            var state = new SpanEquipmentState()
+        }
+
+        public static SpanEquipmentState Create(SpanEquipment spanEquipment, SpanEquipmentSpecification spanEquipmentSpecification, SpanStructureSpecification spanStructureSpecification)
+        {
+            var state = new SpanEquipmentState(LatestChangeType.NEW)
             {
                 Id = spanEquipment.Id,
                 Name = spanEquipment.Name,
+                SpecificationName = spanEquipmentSpecification.Name,
+                OuterDiameter = spanStructureSpecification.OuterDiameter,
                 WalkOfInterestId = spanEquipment.WalkOfInterestId,
                 SpecificationId = spanEquipment.SpecificationId,
                 FromNodeId = spanEquipment.NodesOfInterestIds.First(),
@@ -41,6 +52,16 @@ namespace OpenFTTH.RelationalProjector.State
                 RootSegmentId = spanEquipment.SpanStructures.First().SpanSegments.First().Id,
                 IsCustomerConduit = spanEquipmentSpecification.Name.ToLower().Contains("ø12") ? true : false
             };
+
+            if (spanEquipment.AddressInfo != null && spanEquipment.AddressInfo.AccessAddressId != null)
+            {
+                state.AccessAddressId = spanEquipment.AddressInfo.AccessAddressId.Value;
+            }
+
+            if (spanEquipment.AddressInfo != null && spanEquipment.AddressInfo.UnitAddressId != null)
+            {
+                state.UnitAddressId = spanEquipment.AddressInfo.UnitAddressId.Value;
+            }
 
             return state;
         }

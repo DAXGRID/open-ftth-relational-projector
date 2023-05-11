@@ -7,20 +7,17 @@ namespace OpenFTTH.RelationalProjector.State
     /// <summary>
     /// Service termination state needed by projection logic
     /// </summary>
-    public class ServiceTerminationState
+    public class ServiceTerminationState : ObjectState
     {
         public Guid Id { get; set; }
         public Guid RouteNodeId { get; set; }
         public string Name { get; set; }
 
-        public static ServiceTerminationState Create(TerminalEquipment terminalEquipment, Guid routeNodeId)
+        public ServiceTerminationState(LatestChangeType latestChangeType, TerminalEquipment terminalEquipment, Guid routeNodeId) : base(latestChangeType)
         {
-            return new ServiceTerminationState()
-            {
-                Id = terminalEquipment.Id,
-                RouteNodeId = routeNodeId,
-                Name = terminalEquipment.Name
-            };
+            Id = terminalEquipment.Id;
+            RouteNodeId = routeNodeId;
+            Name = terminalEquipment.Name;
         }
     }
 }

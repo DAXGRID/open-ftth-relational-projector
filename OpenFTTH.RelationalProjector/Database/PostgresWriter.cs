@@ -127,7 +127,7 @@ namespace OpenFTTH.RelationalProjector.Database
             RunDbCommand(transaction, createIndexCmdText);
         }
 
-        public void InsertSpanEquipment(string schemaName, SpanEquipment spanEquipment, SpanEquipmentSpecification spanEquipmentSpecification, int outerDiameter)
+        public void InsertSpanEquipment(string schemaName, SpanEquipmentState spanEquipmentState)
         {
             using var conn = GetConnection() as NpgsqlConnection;
 
@@ -137,22 +137,41 @@ namespace OpenFTTH.RelationalProjector.Database
 
             insertCmd.CommandText = $"INSERT INTO {schemaName}.span_equipment (id, interest_id, outer_diameter, is_cable, name, spec_name) VALUES (@id, @interest_id, @outer_diameter, @is_cable, @name, @spec_name)";
 
-            var idParam = insertCmd.Parameters.Add("id", NpgsqlTypes.NpgsqlDbType.Uuid);
-            var interestIdparam = insertCmd.Parameters.Add("interest_id", NpgsqlTypes.NpgsqlDbType.Uuid);
-            var outerDiameterParam = insertCmd.Parameters.Add("outer_diameter", NpgsqlTypes.NpgsqlDbType.Integer);
-            var isCableParam = insertCmd.Parameters.Add("is_cable", NpgsqlTypes.NpgsqlDbType.Boolean);
-            var nameParam = insertCmd.Parameters.Add("name", NpgsqlTypes.NpgsqlDbType.Varchar);
-            var specNameParam = insertCmd.Parameters.Add("spec_name", NpgsqlTypes.NpgsqlDbType.Varchar);
+            insertCmd.Parameters.Add("id", NpgsqlTypes.NpgsqlDbType.Uuid).Value = spanEquipmentState.Id;
 
-            idParam.Value = spanEquipment.Id;
-            interestIdparam.Value = spanEquipment.WalkOfInterestId;
-            outerDiameterParam.Value = outerDiameter;
-            isCableParam.Value = spanEquipment.IsCable;
-            nameParam.Value = spanEquipment.Name;
-            specNameParam.Value = spanEquipmentSpecification.Name;
+            insertCmd.Parameters.Add("interest_id", NpgsqlTypes.NpgsqlDbType.Uuid).Value = spanEquipmentState.WalkOfInterestId;
+
+            insertCmd.Parameters.Add("outer_diameter", NpgsqlTypes.NpgsqlDbType.Integer).Value = spanEquipmentState.OuterDiameter;
+
+            insertCmd.Parameters.Add("is_cable", NpgsqlTypes.NpgsqlDbType.Boolean).Value = spanEquipmentState.IsCable;
+
+            insertCmd.Parameters.Add("name", NpgsqlTypes.NpgsqlDbType.Varchar).Value = spanEquipmentState.Name;
+
+            insertCmd.Parameters.Add("spec_name", NpgsqlTypes.NpgsqlDbType.Varchar).Value = spanEquipmentState.SpecificationName;
 
             insertCmd.ExecuteNonQuery();
         }
+
+        public void UpdateSpanEquipment(string schemaName, SpanEquipmentState spanEquipmentState)
+        {
+            using (var conn = GetConnection() as NpgsqlConnection)
+            {
+                conn.Open();
+                using (var updateCmd = new NpgsqlCommand($"UPDATE {schemaName}.span_equipment SET outer_diameter = @outer_diameter,  name = @name, spec_name = @spec_name WHERE id = @id", conn))
+                {
+                    updateCmd.Parameters.Add("id", NpgsqlTypes.NpgsqlDbType.Uuid).Value = spanEquipmentState.Id;
+
+                    updateCmd.Parameters.Add("name", NpgsqlTypes.NpgsqlDbType.Varchar).Value = spanEquipmentState.Name;
+
+                    updateCmd.Parameters.Add("spec_name", NpgsqlTypes.NpgsqlDbType.Varchar).Value = spanEquipmentState.SpecificationName;
+
+                    updateCmd.Parameters.Add("outer_diameter", NpgsqlTypes.NpgsqlDbType.Integer).Value = spanEquipmentState.OuterDiameter;
+
+                    updateCmd.ExecuteNonQuery();
+                }
+            }
+        }
+
 
         public void DeleteSpanEquipment(string schemaName, Guid spanEquipmentId)
         {
@@ -161,8 +180,7 @@ namespace OpenFTTH.RelationalProjector.Database
                 conn.Open();
                 using (var deleteCmd = new NpgsqlCommand($"DELETE FROM {schemaName}.span_equipment WHERE id = @i", conn))
                 {
-                    var idparam = deleteCmd.Parameters.Add("i", NpgsqlTypes.NpgsqlDbType.Uuid);
-                    idparam.Value = spanEquipmentId;
+                    deleteCmd.Parameters.Add("i", NpgsqlTypes.NpgsqlDbType.Uuid).Value = spanEquipmentId;
                     deleteCmd.ExecuteNonQuery();
                 }
             }
@@ -184,10 +202,8 @@ namespace OpenFTTH.RelationalProjector.Database
                 {
                     foreach (var spanEquipment in state.SpanEquipmentStates)
                     {
-                        var spanEquipmentSpecification = state.GetSpanEquipmentSpecification(spanEquipment.SpecificationId);
-                        var spanStructureSpecification = state.GetSpanStructureSpecification(spanEquipmentSpecification.RootTemplate.SpanStructureSpecificationId);
-
-                        writer.WriteRow(spanEquipment.Id, spanEquipment.WalkOfInterestId, spanStructureSpecification.OuterDiameter.Value, spanEquipment.IsCable, spanEquipment.Name, spanEquipmentSpecification.Name);
+              
+                        writer.WriteRow(spanEquipment.Id, spanEquipment.WalkOfInterestId, spanEquipment.OuterDiameter, spanEquipment.IsCable, spanEquipment.Name, spanEquipment.SpecificationName);
                     }
 
                     writer.Complete();
@@ -196,24 +212,7 @@ namespace OpenFTTH.RelationalProjector.Database
 
         }
 
-        public void UpdateSpanEquipmentDiameter(string schemaName, Guid spanEquipmentId, int diameter)
-        {
-            using (var conn = GetConnection() as NpgsqlConnection)
-            {
-                conn.Open();
-                using (var updateCmd = new NpgsqlCommand($"UPDATE {schemaName}.span_equipment SET outer_diameter = @d WHERE id = @i", conn))
-                {
-                    var idParam = updateCmd.Parameters.Add("i", NpgsqlTypes.NpgsqlDbType.Uuid);
-                    idParam.Value = spanEquipmentId;
-
-                    var diameterParam = updateCmd.Parameters.Add("d", NpgsqlTypes.NpgsqlDbType.Integer);
-                    diameterParam.Value = diameter;
-
-                    updateCmd.ExecuteNonQuery();
-                }
-            }
-        }
-        #endregion
+       #endregion
 
 
         #region Service Termination Point
@@ -346,9 +345,61 @@ namespace OpenFTTH.RelationalProjector.Database
                     writer.Complete();
                 }
             }
-
         }
+
+        public void InsertConduitSlack(string schemaName, ConduitSlackState state)
+        {
+            using (var conn = GetConnection() as NpgsqlConnection)
+            {
+                conn.Open();
+                using (var updateCmd = new NpgsqlCommand($"INSERT INTO {schemaName}.conduit_slack (id, route_node_id, number_of_ends) VALUES (@id, @route_node_id, @number_of_ends)", conn))
+                {
+                    updateCmd.Parameters.Add("id", NpgsqlTypes.NpgsqlDbType.Uuid).Value = state.Id;
+
+                    updateCmd.Parameters.Add("route_node_id", NpgsqlTypes.NpgsqlDbType.Uuid).Value = state.RouteNodeId;
+
+                    updateCmd.Parameters.Add("number_of_ends", NpgsqlTypes.NpgsqlDbType.Varchar).Value = state.NumberOfConduitEnds;
+
+                    updateCmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+        public void UpdateConduitSlack(string schemaName,ConduitSlackState state)
+        {
+            using (var conn = GetConnection() as NpgsqlConnection)
+            {
+                conn.Open();
+                using (var updateCmd = new NpgsqlCommand($"UPDATE {schemaName}.conduit_slack SET number_of_ends = @n WHERE route_node_id = @i", conn))
+                {
+                    updateCmd.Parameters.Add("i", NpgsqlTypes.NpgsqlDbType.Uuid).Value = state.RouteNodeId;
+
+                    updateCmd.Parameters.Add("n", NpgsqlTypes.NpgsqlDbType.Varchar).Value = state.NumberOfConduitEnds;
+
+                    updateCmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+        public void DeleteConduitSlack(string schemaName, Guid routeNodeId)
+        {
+            using (var conn = GetConnection() as NpgsqlConnection)
+            {
+                conn.Open();
+                using (var deleteCmd = new NpgsqlCommand($"DELETE FROM {schemaName}.conduit_slack WHERE id = @i", conn))
+                {
+                    deleteCmd.Parameters.Add("i", NpgsqlTypes.NpgsqlDbType.Uuid).Value = routeNodeId;
+                    deleteCmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+
         #endregion
+
+
+       
+
 
         #region Work Task
         public void CreateWorkTaskTable(string schemaName, IDbTransaction transaction = null)
@@ -397,7 +448,6 @@ namespace OpenFTTH.RelationalProjector.Database
             }
         }
 
-
         public void BulkCopyIntoWorkTaskTable(string schemaName, ProjektorState state)
         {
             using (var conn = GetConnection() as NpgsqlConnection)
@@ -422,7 +472,6 @@ namespace OpenFTTH.RelationalProjector.Database
             }
 
         }
-
 
         #endregion
 
@@ -499,6 +548,7 @@ namespace OpenFTTH.RelationalProjector.Database
             }
         }
         #endregion
+
 
         #region Views used for GIS map visualisation
 

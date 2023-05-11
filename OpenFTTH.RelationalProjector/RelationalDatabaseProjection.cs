@@ -47,6 +47,7 @@ namespace OpenFTTH.RelationalProjector
             ProjectEventAsync<SpanSegmentsDisconnectedFromTerminals>(Project);
             ProjectEventAsync<SpanEquipmentAffixedToParent>(Project);
             ProjectEventAsync<SpanEquipmentDetachedFromParent>(Project);
+            ProjectEventAsync<SpanEquipmentAddressInfoChanged>(Project);
 
             // Span equipment specification events
             ProjectEventAsync<SpanEquipmentSpecificationAdded>(Project);
@@ -62,6 +63,7 @@ namespace OpenFTTH.RelationalProjector
             // Work tasks
             ProjectEventAsync<WorkTaskCreated>(Project);
             ProjectEventAsync<WorkTaskStatusChanged>(Project);
+           
         }
 
         private void PrepareDatabase()
@@ -109,31 +111,31 @@ namespace OpenFTTH.RelationalProjector
 
                 // Span equipment events
                 case (SpanEquipmentPlacedInRouteNetwork @event):
-                    Handle(@event);
+                    ApplyStateChanges(_state.ProcessSpanEquipmentAdded(@event.Equipment));
                     break;
 
                 case (SpanEquipmentMoved @event):
-                    _state.ProcessSpanEquipmentMoved(@event);
+                    ApplyStateChanges(_state.ProcessSpanEquipmentMoved(@event));
                     break;
 
                 case (SpanEquipmentRemoved @event):
-                    Handle(@event);
+                    ApplyStateChanges(_state.ProcessSpanEquipmentRemoved(@event.SpanEquipmentId));
                     break;
 
                 case (SpanSegmentsConnectedToSimpleTerminals @event):
-                    _state.ProcessSpanEquipmentConnects(@event);
+                    ApplyStateChanges(_state.ProcessSpanEquipmentConnects(@event));
                     break;
 
                 case (SpanSegmentsDisconnectedFromTerminals @event):
-                    _state.ProcessSpanEquipmentDisconnects(@event);
+                    ApplyStateChanges(_state.ProcessSpanEquipmentDisconnects(@event));
                     break;
 
                 case (SpanEquipmentAffixedToParent @event):
-                    _state.ProcessSpanEquipmentAffixedToParent(@event);
+                    ApplyStateChanges(_state.ProcessSpanEquipmentAffixedToParent(@event));
                     break;
 
                 case (SpanEquipmentDetachedFromParent @event):
-                    _state.ProcessSpanEquipmentDetachedFromParent(@event);
+                    ApplyStateChanges(_state.ProcessSpanEquipmentDetachedFromParent(@event));
                     break;
 
 
@@ -147,7 +149,11 @@ namespace OpenFTTH.RelationalProjector
                     break;
 
                 case (SpanEquipmentSpecificationChanged @event):
-                    Handle(@event);
+                    ApplyStateChanges(_state.ProcessSpanEquipmentSpecificationChanged(@event));
+                    break;
+
+                case (SpanEquipmentAddressInfoChanged @event):
+                    ApplyStateChanges(_state.ProcessSpanEquipmentAddressInfoChanged(@event));
                     break;
 
 
@@ -180,6 +186,7 @@ namespace OpenFTTH.RelationalProjector
 
             return Task.CompletedTask;
         }
+      
 
         #region Interest events
 
@@ -219,53 +226,6 @@ namespace OpenFTTH.RelationalProjector
                 _dbWriter.DeleteGuidsFromRouteElementToInterestTable(_schemaName, @event.InterestId);
             }
         }
-
-        #endregion
-
-        #region Span Equipment Events
-        private void Handle(SpanEquipmentPlacedInRouteNetwork @event)
-        {
-            _state.ProcessSpanEquipmentAdded(@event.Equipment);
-
-            if (!_bulkMode)
-            {
-                var spanEquipmentSpec = _state.GetSpanEquipmentSpecification(@event.Equipment.SpecificationId);
-                var structureSpec = _state.GetSpanStructureSpecification(spanEquipmentSpec.RootTemplate.SpanStructureSpecificationId);
-
-                _dbWriter.InsertSpanEquipment(_schemaName, @event.Equipment, spanEquipmentSpec, structureSpec.OuterDiameter.Value);
-            }
-        }
-
-        private void Handle(SpanEquipmentRemoved @event)
-        {
-            if (_state.TryGetSpanEquipmentState(@event.SpanEquipmentId, out var spanEquipmentState))
-            {
-                if (!_bulkMode)
-                {
-                    if (!spanEquipmentState.IsCable)
-                        _dbWriter.DeleteSpanEquipment(_schemaName, @event.SpanEquipmentId);
-                }
-
-                _state.ProcessSpanEquipmentRemoved(@event.SpanEquipmentId);
-            }
-        }
-
-        #endregion
-
-        #region Span Equipment Specification Events
-
-        private void Handle(SpanEquipmentSpecificationChanged @event)
-        {
-            _state.ProcessSpanEquipmentChanged(@event);
-
-            if (!_bulkMode)
-            {
-                var outerDiameter = _state.GetSpanStructureSpecification(_state.GetSpanEquipmentSpecification(@event.NewSpecificationId).RootTemplate.SpanStructureSpecificationId).OuterDiameter;
-
-                _dbWriter.UpdateSpanEquipmentDiameter(_schemaName, @event.SpanEquipmentId, outerDiameter.Value);
-            }
-        }
-
 
         #endregion
 
@@ -327,6 +287,38 @@ namespace OpenFTTH.RelationalProjector
 
 
         #endregion
+
+        private void ApplyStateChanges(List<ObjectState> objectStates)
+        {
+            if (!_bulkMode)
+            {
+                foreach (var objectState in objectStates)
+                {
+                    switch (objectState)
+                    {
+                        case ConduitSlackState conduitSlackState:
+                            if (conduitSlackState.LatestChangeType == LatestChangeType.NEW)
+                                _dbWriter.InsertConduitSlack(_schemaName, conduitSlackState);
+                            else if (conduitSlackState.LatestChangeType == LatestChangeType.UPDATED)
+                                _dbWriter.UpdateConduitSlack(_schemaName, conduitSlackState);
+                            else if (conduitSlackState.LatestChangeType == LatestChangeType.REMOVED)
+                                _dbWriter.DeleteConduitSlack(_schemaName, conduitSlackState.RouteNodeId);
+                            break;
+
+
+                        case SpanEquipmentState spanEquipmentState:
+                            if (spanEquipmentState.LatestChangeType == LatestChangeType.NEW)
+                                _dbWriter.InsertSpanEquipment(_schemaName, spanEquipmentState);
+                            else if (spanEquipmentState.LatestChangeType == LatestChangeType.UPDATED)
+                                _dbWriter.UpdateSpanEquipment(_schemaName, spanEquipmentState);
+                            if (spanEquipmentState.LatestChangeType == LatestChangeType.REMOVED)
+                                _dbWriter.DeleteSpanEquipment(_schemaName, spanEquipmentState.Id);
+                            break;
+
+                    }
+                }
+            }
+        }
 
         public override Task DehydrationFinishAsync()
         {

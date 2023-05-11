@@ -599,13 +599,13 @@ namespace OpenFTTH.RelationalProjector.Database
 	                    ST_AsGeoJSON(ST_Transform(coord,4326)) as coord, 
 	                    case 
 	                      when inst.id is not null then 'SDU'
-                          when slack.id is not null and routenode_kind not in ('HandHole','CabinetSmall','CabinetBig') then 'ConduitSlack'
+                          when slack.id IS NOT NULL AND (route_node.routenode_kind is null or route_node.routenode_kind not in ('HandHole','CabinetSmall','CabinetBig')) then 'ConduitSlack'
 	                      else routenode_kind
 	                    end as kind,
 	                    routenode_function as function, 
 	                    case 
 	                      when inst.id is not null then inst.name
-                          when slack.id is not null and routenode_kind not in ('HandHole','CabinetSmall','CabinetBig') then cast(cast(slack.number_of_ends as character varying) || ' stk' as character varying(255))
+                          when slack.id IS NOT NULL AND (route_node.routenode_kind is null or route_node.routenode_kind not in ('HandHole','CabinetSmall','CabinetBig')) then cast(cast(slack.number_of_ends as character varying) || ' stk' as character varying(255))
 	                      else naming_name
 	                    end as name, 
 	                    mapping_method as method,

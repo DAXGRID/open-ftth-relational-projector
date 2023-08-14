@@ -358,7 +358,7 @@ namespace OpenFTTH.RelationalProjector.Database
 
                     updateCmd.Parameters.Add("route_node_id", NpgsqlTypes.NpgsqlDbType.Uuid).Value = state.RouteNodeId;
 
-                    updateCmd.Parameters.Add("number_of_ends", NpgsqlTypes.NpgsqlDbType.Varchar).Value = state.NumberOfConduitEnds;
+                    updateCmd.Parameters.Add("number_of_ends", NpgsqlTypes.NpgsqlDbType.Integer).Value = state.NumberOfConduitEnds;
 
                     updateCmd.ExecuteNonQuery();
                 }
@@ -374,7 +374,7 @@ namespace OpenFTTH.RelationalProjector.Database
                 {
                     updateCmd.Parameters.Add("i", NpgsqlTypes.NpgsqlDbType.Uuid).Value = state.RouteNodeId;
 
-                    updateCmd.Parameters.Add("n", NpgsqlTypes.NpgsqlDbType.Varchar).Value = state.NumberOfConduitEnds;
+                    updateCmd.Parameters.Add("n", NpgsqlTypes.NpgsqlDbType.Integer).Value = state.NumberOfConduitEnds;
 
                     updateCmd.ExecuteNonQuery();
                 }

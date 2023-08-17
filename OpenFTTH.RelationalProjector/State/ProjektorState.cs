@@ -146,6 +146,8 @@ namespace OpenFTTH.RelationalProjector.State
                 stateChanges.AddRange(IncrementConduitSlackEndCount(spanEquipmentState.ToNodeId));
             }
 
+            stateChanges.Add(spanEquipmentState);
+
             return stateChanges;
         }
 

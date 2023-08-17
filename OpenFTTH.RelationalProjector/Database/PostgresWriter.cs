@@ -112,6 +112,97 @@ namespace OpenFTTH.RelationalProjector.Database
         }
         #endregion
 
+        #region Node Container
+        public void CreateNodeContainerTable(string schemaName, IDbTransaction transaction = null)
+        {
+            // Create table
+            string createTableCmdText = $"CREATE TABLE IF NOT EXISTS {schemaName}.node_container (id uuid, route_node_id uuid, spec_name character varying(255), PRIMARY KEY(id));";
+            _logger.LogDebug($"Execute SQL: {createTableCmdText}");
+
+            RunDbCommand(transaction, createTableCmdText);
+
+            // Create index on route_node_id column
+            string createIndexCmdText = $"CREATE INDEX IF NOT EXISTS idx_node_container_route_node_id ON {schemaName}.node_container(route_node_id);";
+            RunDbCommand(transaction, createIndexCmdText);
+        }
+
+        public void InsertNodeContainer(string schemaName, NodeContainerState nodeContainerState)
+        {
+            using var conn = GetConnection() as NpgsqlConnection;
+
+            conn.Open();
+
+            using var insertCmd = conn.CreateCommand();
+
+            insertCmd.CommandText = $"INSERT INTO {schemaName}.node_container (id, route_node_id, spec_name) VALUES (@id, @route_node_id, @spec_name)";
+
+            var idParam = insertCmd.Parameters.Add("id", NpgsqlTypes.NpgsqlDbType.Uuid);
+            var routeNodeIdParam = insertCmd.Parameters.Add("route_node_id", NpgsqlTypes.NpgsqlDbType.Uuid);
+            var specNameParam = insertCmd.Parameters.Add("spec_name", NpgsqlTypes.NpgsqlDbType.Varchar);
+
+            idParam.Value = nodeContainerState.Id;
+            routeNodeIdParam.Value = nodeContainerState.RouteNodeId;
+            specNameParam.Value = nodeContainerState.SpecificationName;
+
+            insertCmd.ExecuteNonQuery();
+        }
+
+        public void UpdateNodeContainer(string schemaName, NodeContainerState nodeContainerState)
+        {
+            using (var conn = GetConnection() as NpgsqlConnection)
+            {
+                conn.Open();
+                using (var updateCmd = new NpgsqlCommand($"UPDATE {schemaName}.node_container SET spec_name = @spec_name WHERE id = @id", conn))
+                {
+                    updateCmd.Parameters.Add("id", NpgsqlTypes.NpgsqlDbType.Uuid).Value = nodeContainerState.Id;
+
+                    updateCmd.Parameters.Add("spec_name", NpgsqlTypes.NpgsqlDbType.Varchar).Value = nodeContainerState.SpecificationName;
+
+                    updateCmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+        public void DeleteNodeContainer(string schemaName, Guid spanEquipmentId)
+        {
+            using (var conn = GetConnection() as NpgsqlConnection)
+            {
+                conn.Open();
+                using (var deleteCmd = new NpgsqlCommand($"DELETE FROM {schemaName}.node_container WHERE id = @i", conn))
+                {
+                    var idparam = deleteCmd.Parameters.Add("i", NpgsqlTypes.NpgsqlDbType.Uuid);
+                    idparam.Value = spanEquipmentId;
+                    deleteCmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+        public void BulkCopyIntoNodeContainerTable(string schemaName, ProjektorState state)
+        {
+            using (var conn = GetConnection() as NpgsqlConnection)
+            {
+                conn.Open();
+
+                // Truncate the table
+                using (var truncateCmd = new NpgsqlCommand($"truncate table {schemaName}.node_container", conn))
+                {
+                    truncateCmd.ExecuteNonQuery();
+                }
+
+                using (var writer = conn.BeginBinaryImport($"copy {schemaName}.node_container (id, route_node_id, spec_name) from STDIN (FORMAT BINARY)"))
+                {
+                    foreach (var nodeContainer in state.NodeContainerStates)
+                    {
+                        writer.WriteRow(nodeContainer.Id, nodeContainer.RouteNodeId, nodeContainer.SpecificationName);
+                    }
+
+                    writer.Complete();
+                }
+            }
+
+        }
+        #endregion
+
 
         #region Span Equipment table
         public void CreateSpanEquipmentTable(string schemaName, IDbTransaction transaction = null)
@@ -171,7 +262,6 @@ namespace OpenFTTH.RelationalProjector.Database
                 }
             }
         }
-
 
         public void DeleteSpanEquipment(string schemaName, Guid spanEquipmentId)
         {
@@ -358,7 +448,7 @@ namespace OpenFTTH.RelationalProjector.Database
 
                     updateCmd.Parameters.Add("route_node_id", NpgsqlTypes.NpgsqlDbType.Uuid).Value = state.RouteNodeId;
 
-                    updateCmd.Parameters.Add("number_of_ends", NpgsqlTypes.NpgsqlDbType.Varchar).Value = state.NumberOfConduitEnds;
+                    updateCmd.Parameters.Add("number_of_ends", NpgsqlTypes.NpgsqlDbType.Integer).Value = state.NumberOfConduitEnds;
 
                     updateCmd.ExecuteNonQuery();
                 }
@@ -370,11 +460,11 @@ namespace OpenFTTH.RelationalProjector.Database
             using (var conn = GetConnection() as NpgsqlConnection)
             {
                 conn.Open();
-                using (var updateCmd = new NpgsqlCommand($"UPDATE {schemaName}.conduit_slack SET number_of_ends = @n WHERE route_node_id = @i", conn))
+                using (var updateCmd = new NpgsqlCommand($"UPDATE {schemaName}.conduit_slack SET number_of_ends = @number_of_ends WHERE route_node_id = @route_node_id", conn))
                 {
-                    updateCmd.Parameters.Add("i", NpgsqlTypes.NpgsqlDbType.Uuid).Value = state.RouteNodeId;
+                    updateCmd.Parameters.Add("route_node_id", NpgsqlTypes.NpgsqlDbType.Uuid).Value = state.RouteNodeId;
 
-                    updateCmd.Parameters.Add("n", NpgsqlTypes.NpgsqlDbType.Varchar).Value = state.NumberOfConduitEnds;
+                    updateCmd.Parameters.Add("number_of_ends", NpgsqlTypes.NpgsqlDbType.Integer).Value = state.NumberOfConduitEnds;
 
                     updateCmd.ExecuteNonQuery();
                 }
@@ -386,19 +476,15 @@ namespace OpenFTTH.RelationalProjector.Database
             using (var conn = GetConnection() as NpgsqlConnection)
             {
                 conn.Open();
-                using (var deleteCmd = new NpgsqlCommand($"DELETE FROM {schemaName}.conduit_slack WHERE id = @i", conn))
+                using (var deleteCmd = new NpgsqlCommand($"DELETE FROM {schemaName}.conduit_slack WHERE route_node_id = @route_node_id", conn))
                 {
-                    deleteCmd.Parameters.Add("i", NpgsqlTypes.NpgsqlDbType.Uuid).Value = routeNodeId;
+                    deleteCmd.Parameters.Add("route_node_id", NpgsqlTypes.NpgsqlDbType.Uuid).Value = routeNodeId;
                     deleteCmd.ExecuteNonQuery();
                 }
             }
         }
 
-
         #endregion
-
-
-       
 
 
         #region Work Task

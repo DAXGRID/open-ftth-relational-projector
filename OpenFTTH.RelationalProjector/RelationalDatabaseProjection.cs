@@ -31,8 +31,10 @@ namespace OpenFTTH.RelationalProjector
             _dbWriter = dbWriter;
 
             // Node container events
+            ProjectEventAsync<NodeContainerSpecificationAdded>(Project);
             ProjectEventAsync<NodeContainerPlacedInRouteNetwork>(Project);
             ProjectEventAsync<NodeContainerRemovedFromRouteNetwork>(Project);
+            ProjectEventAsync<NodeContainerSpecificationChanged>(Project);
 
             // Interest events
             ProjectEventAsync<WalkOfInterestRegistered>(Project);
@@ -45,6 +47,7 @@ namespace OpenFTTH.RelationalProjector
             ProjectEventAsync<SpanEquipmentRemoved>(Project);
             ProjectEventAsync<SpanSegmentsConnectedToSimpleTerminals>(Project);
             ProjectEventAsync<SpanSegmentsDisconnectedFromTerminals>(Project);
+            ProjectEventAsync<SpanSegmentDisconnectedFromTerminal>(Project);
             ProjectEventAsync<SpanEquipmentAffixedToParent>(Project);
             ProjectEventAsync<SpanEquipmentDetachedFromParent>(Project);
             ProjectEventAsync<SpanEquipmentAddressInfoChanged>(Project);
@@ -69,12 +72,15 @@ namespace OpenFTTH.RelationalProjector
         private void PrepareDatabase()
         {
             _dbWriter.CreateSchema(_schemaName);
+            _dbWriter.CreateNodeContainerTable(_schemaName);
             _dbWriter.CreateRouteElementToInterestTable(_schemaName);
             _dbWriter.CreateSpanEquipmentTable(_schemaName);
-            _dbWriter.CreateRouteSegmentLabelView(_schemaName);
             _dbWriter.CreateServiceTerminationTable(_schemaName);
             _dbWriter.CreateConduitSlackTable(_schemaName);
             _dbWriter.CreateWorkTaskTable(_schemaName);
+
+            // Views
+            _dbWriter.CreateRouteSegmentLabelView(_schemaName);
             _dbWriter.CreateRouteNodeView(_schemaName);
             _dbWriter.CreateRouteSegmentView(_schemaName);
             _dbWriter.CreateRouteSegmentTaskStatusView(_schemaName);
@@ -86,12 +92,20 @@ namespace OpenFTTH.RelationalProjector
             switch (eventEnvelope.Data)
             {
                 // Node container events
+                case (NodeContainerSpecificationAdded @event):
+                    _state.ProcessNodeContainerSpecificationAdded(@event);
+                    break;
+
                 case (NodeContainerPlacedInRouteNetwork @event):
-                    _state.ProcessNodeContainerAdded(@event);
+                    Handle(@event);
                     break;
 
                 case (NodeContainerRemovedFromRouteNetwork @event):
-                    _state.ProcessNodeContainerRemoved(@event.NodeContainerId);
+                    Handle(@event);
+                    break;
+
+                case (NodeContainerSpecificationChanged @event):
+                    Handle(@event);
                     break;
 
 
@@ -124,6 +138,10 @@ namespace OpenFTTH.RelationalProjector
 
                 case (SpanSegmentsConnectedToSimpleTerminals @event):
                     ApplyStateChanges(_state.ProcessSpanEquipmentConnects(@event));
+                    break;
+
+                case (SpanSegmentDisconnectedFromTerminal @event):
+                    ApplyStateChanges(_state.ProcessSpanEquipmentDisconnects(@event));
                     break;
 
                 case (SpanSegmentsDisconnectedFromTerminals @event):
@@ -173,6 +191,7 @@ namespace OpenFTTH.RelationalProjector
                 case (TerminalEquipmentNamingInfoChanged @event):
                     Handle(@event);
                     break;
+
 
                 // Work tasks
                 case (WorkTaskCreated @event):
@@ -263,6 +282,40 @@ namespace OpenFTTH.RelationalProjector
 
         #endregion
 
+        #region Node Constainer events
+
+        private void Handle(NodeContainerPlacedInRouteNetwork @event)
+        {
+            var nodeContainerState = _state.ProcessNodeContainerAdded(@event);
+
+            if (nodeContainerState != null && !_bulkMode)
+            {
+                _dbWriter.InsertNodeContainer(_schemaName, nodeContainerState);
+            }
+        }
+
+        private void Handle(NodeContainerRemovedFromRouteNetwork @event)
+        {
+            _state.ProcessNodeContainerRemoved(@event.NodeContainerId);
+
+            if (!_bulkMode)
+            {
+                _dbWriter.DeleteNodeContainer(_schemaName, @event.NodeContainerId);
+            }
+        }
+
+        private void Handle(NodeContainerSpecificationChanged @event)
+        {
+            var newState = _state.ProcessNodeContainerSpecificationChanged(@event);
+
+            if (!_bulkMode)
+            {
+                _dbWriter.UpdateNodeContainer(_schemaName, newState);
+            }
+        }
+
+        #endregion
+
         #region Work Task Events
 
         private void Handle(WorkTaskCreated @event)
@@ -328,6 +381,9 @@ namespace OpenFTTH.RelationalProjector
 
             _logger.LogInformation($"Writing route element interest relations...");
             _dbWriter.BulkCopyGuidsToRouteElementToInterestTable(_schemaName, _state);
+
+            _logger.LogInformation($"Writing node containers...");
+            _dbWriter.BulkCopyIntoNodeContainerTable(_schemaName, _state);
 
             _logger.LogInformation($"Writing service terminations...");
             _dbWriter.BulkCopyIntoServiceTerminationTable(_schemaName, _state);

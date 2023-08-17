@@ -13,25 +13,61 @@ namespace OpenFTTH.RelationalProjector.State
     public class ProjektorState
     {
         #region Node Container Information
+        private Dictionary<Guid, NodeContainerSpecification> _nodeContainerSpecificationById = new();
+        private Dictionary<Guid, NodeContainerState> _nodeContainerStateById = new();
         private Dictionary<Guid, Guid> _nodeContainerToRouteNodeRelation = new();
         private Dictionary<Guid, Guid> _routeNodeToNodeContainerRelation = new();
 
-        public void ProcessNodeContainerAdded(NodeContainerPlacedInRouteNetwork @event)
+        public IEnumerable<NodeContainerState> NodeContainerStates => _nodeContainerStateById.Values;
+
+        public void ProcessNodeContainerSpecificationAdded(NodeContainerSpecificationAdded @event)
         {
+            _nodeContainerSpecificationById[@event.Specification.Id] = @event.Specification;
+        }
+        public NodeContainerState ProcessNodeContainerSpecificationChanged(NodeContainerSpecificationChanged @event)
+        {
+            var nodeContainerSpecification = _nodeContainerSpecificationById[@event.NewSpecificationId];
+
+            var nodeContainerState = _nodeContainerStateById[@event.NodeContainerId];
+
+            nodeContainerState.LatestChangeType = LatestChangeType.UPDATED;
+
+            nodeContainerState.SpecificationId = @event.NewSpecificationId;
+
+            nodeContainerState.SpecificationName = nodeContainerSpecification.Name;
+
+            return nodeContainerState;
+        }
+
+
+        public NodeContainerState ProcessNodeContainerAdded(NodeContainerPlacedInRouteNetwork @event)
+        {
+            // Add state
+
+            var nodeContainerSpecification = _nodeContainerSpecificationById[@event.Container.SpecificationId];
+
+            var nodeContainerState = new NodeContainerState(LatestChangeType.NEW, @event.Container, nodeContainerSpecification.Name);
+            _nodeContainerStateById[@event.Container.Id] = nodeContainerState;
+
+            // Update relation dictionaries
+            _nodeContainerToRouteNodeRelation[@event.Container.Id] = @event.Container.RouteNodeId;
+            _routeNodeToNodeContainerRelation[@event.Container.RouteNodeId] = @event.Container.Id;
+
             // Remove conduit slack if any, unless uknown conduit junction
-            // FIX: Remove conduit slack stuff to customer specific relational projector service
             if (@event.Container.SpecificationId != Guid.Parse("c288e797-a65c-4cf6-b63d-5eda4b4a8a8c"))
             {
-                _nodeContainerToRouteNodeRelation[@event.Container.Id] = @event.Container.RouteNodeId;
-                _routeNodeToNodeContainerRelation[@event.Container.RouteNodeId] = @event.Container.Id;
-
                 if (_conduitSlackStateByRouteNodeId.ContainsKey(@event.Container.RouteNodeId))
                     _conduitSlackStateByRouteNodeId.Remove(@event.Container.RouteNodeId);
             }
+
+            return nodeContainerState;
         }
 
         public void ProcessNodeContainerRemoved(Guid nodeContainerId)
         {
+            if (_nodeContainerStateById.ContainsKey(nodeContainerId))
+                _nodeContainerSpecificationById.Remove(nodeContainerId);
+
             if (_nodeContainerToRouteNodeRelation.ContainsKey(nodeContainerId))
             {
                 var routeNodeId = _nodeContainerToRouteNodeRelation[nodeContainerId];
@@ -78,6 +114,7 @@ namespace OpenFTTH.RelationalProjector.State
         private Dictionary<Guid, SpanEquipmentState> _spanEquipmentStateById = new();
         private Dictionary<Guid, SpanEquipmentState> _spanEquipmentStateByRootSegmentId = new();
         private Dictionary<Guid, ConduitSlackState> _conduitSlackStateByRouteNodeId = new();
+        private Dictionary<Guid, List<SpanEquipmentState>> _spanEquipmentParentsByChildId = new();
 
         public IEnumerable<SpanEquipmentState> SpanEquipmentStates => _spanEquipmentStateById.Values;
         public IEnumerable<ConduitSlackState> ConduitSlackStates => _conduitSlackStateByRouteNodeId.Values;
@@ -268,34 +305,49 @@ namespace OpenFTTH.RelationalProjector.State
             return stateChanges;
         }
 
+        public List<ObjectState> ProcessSpanEquipmentDisconnects(SpanSegmentDisconnectedFromTerminal @event)
+        {
+            List<SpanSegmentToTerminalDisconnectInfo> disconnects = new List<SpanSegmentToTerminalDisconnectInfo>()
+            {
+                new SpanSegmentToTerminalDisconnectInfo(@event.SpanSegmentId, @event.TerminalId)
+            };
+
+            return ProcessSpanEquipmentDisconnects(@event.SpanEquipmentId, disconnects);
+        }
+
         public List<ObjectState> ProcessSpanEquipmentDisconnects(SpanSegmentsDisconnectedFromTerminals @event)
+        {
+            return ProcessSpanEquipmentDisconnects(@event.SpanEquipmentId, @event.Disconnects.ToList());
+        }
+
+        private List<ObjectState> ProcessSpanEquipmentDisconnects(Guid spanEquipmentId, List<SpanSegmentToTerminalDisconnectInfo> disconnects)
         {
             List<ObjectState> stateChanges = new List<ObjectState>();
 
-            if (_spanEquipmentStateById.TryGetValue(@event.SpanEquipmentId, out var existingSpanEquipmentState))
+            if (_spanEquipmentStateById.TryGetValue(spanEquipmentId, out var spanEquipmentState))
             {
-                foreach (var disconnect in @event.Disconnects)
+                foreach (var disconnect in disconnects)
                 {
-                    if (disconnect.SegmentId == existingSpanEquipmentState.RootSegmentId)
+                    if (disconnect.SegmentId == spanEquipmentState.RootSegmentId)
                     {
-                        if (existingSpanEquipmentState.RootSegmentFromTerminalId == disconnect.TerminalId)
+                        if (spanEquipmentState.RootSegmentFromTerminalId == disconnect.TerminalId)
                         {
-                            existingSpanEquipmentState.RootSegmentFromTerminalId = Guid.Empty;
-                            existingSpanEquipmentState.RootSegmentHasFromConnection = false;
+                            spanEquipmentState.RootSegmentFromTerminalId = Guid.Empty;
+                            spanEquipmentState.RootSegmentHasFromConnection = false;
 
-                            if (IsSpanEquipmentToNodeSlack(existingSpanEquipmentState))
+                            if (IsSpanEquipmentToNodeSlack(spanEquipmentState))
                             {
-                                stateChanges.AddRange(IncrementConduitSlackEndCount(existingSpanEquipmentState.ToNodeId));
+                                stateChanges.AddRange(IncrementConduitSlackEndCount(spanEquipmentState.ToNodeId));
                             }
                         }
-                        else if (existingSpanEquipmentState.RootSegmentToTerminalId == disconnect.TerminalId)
+                        else if (spanEquipmentState.RootSegmentToTerminalId == disconnect.TerminalId)
                         {
-                            existingSpanEquipmentState.RootSegmentToTerminalId = Guid.Empty;
-                            existingSpanEquipmentState.RootSegmentHasToConnection = false;
+                            spanEquipmentState.RootSegmentToTerminalId = Guid.Empty;
+                            spanEquipmentState.RootSegmentHasToConnection = false;
 
-                            if (IsSpanEquipmentFromNodeSlack(existingSpanEquipmentState))
+                            if (IsSpanEquipmentFromNodeSlack(spanEquipmentState))
                             {
-                                stateChanges.AddRange(IncrementConduitSlackEndCount(existingSpanEquipmentState.FromNodeId));
+                                stateChanges.AddRange(IncrementConduitSlackEndCount(spanEquipmentState.FromNodeId));
                             }
                         }
                     }
@@ -313,20 +365,30 @@ namespace OpenFTTH.RelationalProjector.State
             {
                 foreach (var parentAffix in utilityNetworkHop.ParentAffixes)
                 {
-                    if (_spanEquipmentStateByRootSegmentId.TryGetValue(parentAffix.SpanSegmentId, out var existingSpanEquipmentState))
+                    if (_spanEquipmentStateByRootSegmentId.TryGetValue(parentAffix.SpanSegmentId, out var parentSpanEquipmentState))
                     {
-                        if (IsSpanEquipmentToNodeSlack(existingSpanEquipmentState))
+                        if (IsSpanEquipmentToNodeSlack(parentSpanEquipmentState))
                         {
-                            stateChanges.AddRange(DecrementConduitSlackEndCount(existingSpanEquipmentState.ToNodeId));
+                            stateChanges.AddRange(DecrementConduitSlackEndCount(parentSpanEquipmentState.ToNodeId));
                         }
 
-                        if (IsSpanEquipmentFromNodeSlack(existingSpanEquipmentState))
+                        if (IsSpanEquipmentFromNodeSlack(parentSpanEquipmentState))
                         {
-                            stateChanges.AddRange(DecrementConduitSlackEndCount(existingSpanEquipmentState.FromNodeId));
+                            stateChanges.AddRange(DecrementConduitSlackEndCount(parentSpanEquipmentState.FromNodeId));
                         }
 
-                        existingSpanEquipmentState.ChildSpanEquipmentId = @event.SpanEquipmentId;
-                        existingSpanEquipmentState.HasChildSpanEquipments = true;
+                        parentSpanEquipmentState.ChildSpanEquipmentId = @event.SpanEquipmentId;
+                        parentSpanEquipmentState.HasChildSpanEquipments = true;
+
+                        // Update parent list
+                        if (_spanEquipmentParentsByChildId.TryGetValue(@event.SpanEquipmentId, out var parents))
+                        {
+                            parents.Add(parentSpanEquipmentState);
+                        }
+                        else
+                        {
+                            _spanEquipmentParentsByChildId[@event.SpanEquipmentId] = new List<SpanEquipmentState>() { parentSpanEquipmentState };
+                        }
                     }
                 }
             }
@@ -338,29 +400,26 @@ namespace OpenFTTH.RelationalProjector.State
         {
             List<ObjectState> stateChanges = new List<ObjectState>();
 
-            foreach (var utilityNetworkHop in @event.NewUtilityHopList)
+            // Update parent list
+            if (_spanEquipmentParentsByChildId.TryGetValue(@event.SpanEquipmentId, out var parents))
             {
-                foreach (var parentAffix in utilityNetworkHop.ParentAffixes)
+                foreach (var parentSpanEquipment in parents)
                 {
-                    if (_spanEquipmentStateByRootSegmentId.TryGetValue(parentAffix.SpanSegmentId, out var existingSpanEquipmentState))
+                    parentSpanEquipment.ChildSpanEquipmentId = Guid.Empty;
+                    parentSpanEquipment.HasChildSpanEquipments = false;
+
+                    if (IsSpanEquipmentToNodeSlack(parentSpanEquipment))
                     {
-                        if (@event.SpanEquipmentId == existingSpanEquipmentState.ChildSpanEquipmentId)
-                        {
-                            existingSpanEquipmentState.ChildSpanEquipmentId = Guid.Empty;
-                            existingSpanEquipmentState.HasChildSpanEquipments = false;
+                        stateChanges.AddRange(IncrementConduitSlackEndCount(parentSpanEquipment.ToNodeId));
+                    }
 
-                            if (IsSpanEquipmentToNodeSlack(existingSpanEquipmentState))
-                            {
-                                stateChanges.AddRange(IncrementConduitSlackEndCount(existingSpanEquipmentState.ToNodeId));
-                            }
-
-                            if (IsSpanEquipmentFromNodeSlack(existingSpanEquipmentState))
-                            {
-                                stateChanges.AddRange(IncrementConduitSlackEndCount(existingSpanEquipmentState.FromNodeId));
-                            }
-                        }
+                    if (IsSpanEquipmentFromNodeSlack(parentSpanEquipment))
+                    {
+                        stateChanges.AddRange(IncrementConduitSlackEndCount(parentSpanEquipment.FromNodeId));
                     }
                 }
+
+                _spanEquipmentParentsByChildId.Remove(@event.SpanEquipmentId);
             }
 
             return stateChanges;
@@ -429,6 +488,7 @@ namespace OpenFTTH.RelationalProjector.State
                 if (conduitSlackState.NumberOfConduitEnds == 0)
                 {
                     _conduitSlackStateByRouteNodeId.Remove(nodeId);
+                    conduitSlackState.LatestChangeType = LatestChangeType.REMOVED;
                 }
 
                 return new List<ConduitSlackState>() { conduitSlackState };

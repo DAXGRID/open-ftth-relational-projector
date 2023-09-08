@@ -83,8 +83,10 @@ namespace OpenFTTH.RelationalProjector
             _dbWriter.CreateRouteSegmentLabelView(_schemaName);
             _dbWriter.CreateRouteNodeView(_schemaName);
             _dbWriter.CreateRouteSegmentView(_schemaName);
-            _dbWriter.CreateRouteSegmentTaskStatusView(_schemaName);
-            _dbWriter.CreateRouteNodeTaskStatusView(_schemaName);
+            _dbWriter.CreateRouteSegmentWithTaskInfoView(_schemaName);
+            _dbWriter.CreateRouteNodeWithTaskInfoView(_schemaName);
+            _dbWriter.CreateServiceTerminationView(_schemaName);
+            _dbWriter.CreateStandAloneSpliceClosureView(_schemaName);
         }
 
         private Task Project(IEventEnvelope eventEnvelope)

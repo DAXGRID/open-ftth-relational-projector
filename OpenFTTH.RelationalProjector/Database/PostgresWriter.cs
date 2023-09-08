@@ -112,6 +112,7 @@ namespace OpenFTTH.RelationalProjector.Database
         }
         #endregion
 
+
         #region Node Container
         public void CreateNodeContainerTable(string schemaName, IDbTransaction transaction = null)
         {
@@ -618,6 +619,8 @@ namespace OpenFTTH.RelationalProjector.Database
 
         private void RunDbCommand(IDbTransaction transaction, string createTableCmdText)
         {
+            _logger.LogDebug($"Execute SQL: {createTableCmdText}");
+
             if (transaction == null)
             {
                 using (var conn = GetConnection())
@@ -638,6 +641,46 @@ namespace OpenFTTH.RelationalProjector.Database
                 }
             }
         }
+
+        private void RunDbCommandIfNotExists(IDbTransaction transaction, string createTableCmdText)
+        {
+            _logger.LogDebug($"Execute SQL: {createTableCmdText}");
+
+            try
+            {
+                if (transaction == null)
+                {
+                    using (var conn = GetConnection())
+                    {
+                        conn.Open();
+
+                        using (var createSchemaCmd = new NpgsqlCommand(createTableCmdText, (NpgsqlConnection)conn))
+                        {
+                            createSchemaCmd.ExecuteNonQuery();
+                        }
+                    }
+                }
+                else
+                {
+                    using (var createSchemaCmd = new NpgsqlCommand(createTableCmdText, (NpgsqlConnection)transaction.Connection, (NpgsqlTransaction)transaction))
+                    {
+                        createSchemaCmd.ExecuteNonQuery();
+                    }
+                }
+            }
+            catch (PostgresException ex)
+            {
+                if (ex.Message.ToLower().Contains("already exists"))
+                {
+                    _logger.LogDebug(ex.Message);
+                    return;
+                }
+                else
+                    throw (ex);
+            }
+        }
+
+
         #endregion
 
 
@@ -675,7 +718,6 @@ namespace OpenFTTH.RelationalProjector.Database
                 where exists (
 	                select null from utility_network.rel_interest_to_route_element i2r2 where i2r2.route_network_element_id = route_segment.mrid
                 )";
-            _logger.LogDebug($"Execute SQL: {createViewCmdText}");
 
             RunDbCommand(transaction, createViewCmdText);
         }
@@ -686,11 +728,12 @@ namespace OpenFTTH.RelationalProjector.Database
             string createViewCmdText = @"
                 CREATE OR REPLACE VIEW " + schemaName + @".route_node AS 
                     select 
-	                    mrid, 
+		                    mrid, 
 	                    ST_AsGeoJSON(ST_Transform(coord,4326)) as coord, 
 	                    case 
 	                      when inst.id is not null then 'SDU'
                           when slack.id IS NOT NULL AND (route_node.routenode_kind is null or route_node.routenode_kind not in ('HandHole','CabinetSmall','CabinetBig')) then 'ConduitSlack'
+						  when node_container.id IS NOT NULL AND node_container.spec_category in ('SpliceClosure') then 'SpliceClosure'
 	                      else routenode_kind
 	                    end as kind,
 	                    routenode_function as function, 
@@ -713,13 +756,13 @@ namespace OpenFTTH.RelationalProjector.Database
                         utility_network.conduit_slack slack on slack.route_node_id = route_node.mrid
    			     	  left outer join
 					    utility_network.work_task ON work_task.id = route_node.work_task_mrid				
+				      left outer join
+					    utility_network.node_container ON node_container.route_node_id = route_node.mrid
                       where
 	                    coord is not null and
 	                    marked_to_be_deleted = false
-                      order by mrid;
-            ";
-
-            _logger.LogDebug($"Execute SQL: {createViewCmdText}");
+                      order by mrid;     
+                ";
 
             RunDbCommand(transaction, createViewCmdText);
         }
@@ -752,44 +795,358 @@ namespace OpenFTTH.RelationalProjector.Database
                   order by
 	                route_segment.mrid
                 ";
-            _logger.LogDebug($"Execute SQL: {createViewCmdText}");
 
             RunDbCommand(transaction, createViewCmdText);
         }
 
-        public void CreateRouteSegmentTaskStatusView(string schemaName, IDbTransaction transaction = null)
+        public void CreateRouteNodeWithTaskInfoView(string schemaName, IDbTransaction transaction = null)
         {
             // Create view
             string createViewCmdText = @"
-                CREATE OR REPLACE VIEW " + schemaName + @".route_segment_with_task_status AS 
-                select 
-                  *,
-                  work_task.status as work_task_status
-                from 
-                  route_network.route_segment
-                left outer join utility_network.work_task on work_task.id = route_segment.work_task_mrid
+                CREATE OR REPLACE VIEW " + schemaName + @".route_node_with_work_task_info
+                AS
+                SELECT route_node.mrid,
+                    route_node.coord,
+                    route_node.marked_to_be_deleted,
+                    route_node.delete_me,
+                    route_node.work_task_mrid,
+                    route_node.user_name,
+                    route_node.application_name,
+                    route_node.application_info,
+                    route_node.lifecycle_deployment_state,
+                    route_node.lifecycle_installation_date,
+                    route_node.lifecycle_removal_date,
+                    route_node.mapping_method,
+                    route_node.mapping_vertical_accuracy,
+                    route_node.mapping_horizontal_accuracy,
+                    route_node.mapping_source_info,
+                    route_node.mapping_survey_date,
+                    route_node.safety_classification,
+                    route_node.safety_remark,
+                    route_node.routenode_kind,
+                    route_node.routenode_function,
+                    route_node.naming_name,
+                    route_node.naming_description,
+                    route_node.lifecycle_documentation_state,
+                        CASE
+                            WHEN work_task.status IS NULL THEN 'InService'::text
+                            WHEN work_task.status::text = 'Udført'::text THEN 'InService'::text
+                            ELSE 'Planned'::text
+                        END AS work_task_deployment_state,
+		                 work_task.number as work_task_number,
+		                 user_edit_history.created_username,
+		                 timezone('Europe/Copenhagen', user_edit_history.created_timestamp) as created_timestamp,
+		                 user_edit_history.edited_username,
+		                 timezone('Europe/Copenhagen', user_edit_history.edited_timestamp) as edited_timestamp
+                   FROM route_network.route_node
+                     LEFT JOIN utility_network.work_task ON work_task.id = route_node.work_task_mrid
+	                 LEFT JOIN route_network.user_edit_history ON user_edit_history.route_network_element_id = route_node.mrid;
+            ";
+
+            RunDbCommand(transaction, createViewCmdText);
+
+            // Create insert trigger function
+            string insertTriggerfunctionCmdText = @"
+                CREATE OR REPLACE FUNCTION " + schemaName + @".route_node_with_work_task_info_on_insert()
+                RETURNS trigger
+                LANGUAGE 'plpgsql'
+                COST 100
+                VOLATILE NOT LEAKPROOF
+                AS $BODY$	
+                  BEGIN	
+                      INSERT INTO route_network.node (coord, marked_to_be_deleted, delete_me, work_task_mrid, user_name, application_name, application_info, lifecycle_deployment_state, lifecycle_installation_date, lifecycle_removal_date, mapping_method, mapping_vertical_accuracy, mapping_horizontal_accuracy, mapping_source_info, mapping_survey_date, safety_classification, safety_remark, routenode_kind, routenode_function, naming_name, naming_description) VALUES 
+                        ( NEW.coord
+                        , NEW.marked_to_be_deleted
+                        , NEW.delete_me
+                        , NEW.work_task_mrid
+                        , NEW.user_name
+                        , NEW.application_name
+                        , NEW.application_info
+                        , NEW.lifecycle_deployment_state
+                        , NEW.lifecycle_installation_date
+                        , NEW.lifecycle_removal_date
+                        , NEW.mapping_method
+                        , NEW.mapping_vertical_accuracy
+                        , NEW.mapping_horizontal_accuracy
+                        , NEW.mapping_source_info
+                        , NEW.mapping_survey_date
+                        , NEW.safety_classification
+                        , NEW.safety_remark
+		                , NEW.routenode_kind
+                        , NEW.routenode_function
+                        , NEW.naming_name
+                        , NEW.naming_description
+                        );
+                      RETURN NEW;
+                  END $BODY$;
              ";
 
-            _logger.LogDebug($"Execute SQL: {createViewCmdText}");
+            RunDbCommand(transaction, insertTriggerfunctionCmdText);
 
-            RunDbCommand(transaction, createViewCmdText);
+
+            // Create insert trigger
+            string insertTriggerCmdText = @"
+                 CREATE TRIGGER route_node_with_work_task_info_on_insert_trigger
+                 INSTEAD OF INSERT
+                 ON utility_network.route_node_with_work_task_info
+                 FOR EACH ROW
+                 EXECUTE PROCEDURE utility_network.route_node_with_work_task_info_on_insert();
+            ";
+
+            RunDbCommandIfNotExists(transaction, insertTriggerCmdText);
+
+
+            // Create update trigger function
+            string updateTriggerfunctionCmdText = @"
+                CREATE OR REPLACE FUNCTION " + schemaName + @".route_node_with_work_task_info_on_update()
+                RETURNS trigger
+                LANGUAGE 'plpgsql'
+                COST 100
+                VOLATILE NOT LEAKPROOF
+                AS $BODY$	
+                  BEGIN	
+                      UPDATE route_network.route_node SET
+	                    coord = NEW.coord
+                        , marked_to_be_deleted = NEW.marked_to_be_deleted
+                        , delete_me = NEW.delete_me
+                        , user_name = NEW.user_name
+                        , application_name = NEW.application_name
+                        , application_info = NEW.application_info
+                        , lifecycle_deployment_state = NEW.lifecycle_deployment_state
+                        , lifecycle_installation_date = NEW.lifecycle_installation_date
+                        , lifecycle_removal_date = NEW.lifecycle_removal_date
+                        , mapping_method = NEW.mapping_method
+                        , mapping_vertical_accuracy = NEW.mapping_vertical_accuracy
+                        , mapping_horizontal_accuracy = NEW.mapping_horizontal_accuracy
+                        , mapping_source_info = NEW.mapping_source_info
+                        , mapping_survey_date = NEW.mapping_survey_date
+                        , safety_classification = NEW.safety_classification
+                        , safety_remark = NEW.safety_remark
+		                , routenode_kind = NEW.routenode_kind
+                        , routenode_function = NEW.routenode_function
+                        , naming_name = NEW.naming_name
+                        , naming_description = NEW.naming_description
+                       WHERE mrid = OLD.mrid
+		                ;
+                      RETURN NEW;
+                  END $BODY$;
+             ";
+
+            RunDbCommand(transaction, updateTriggerfunctionCmdText);
+
+
+            // Create update trigger
+            string updateTriggerCmdText = @"
+                CREATE TRIGGER route_node_with_work_task_info_on_update_trigger
+                INSTEAD OF UPDATE 
+                ON utility_network.route_node_with_work_task_info
+                FOR EACH ROW
+                EXECUTE PROCEDURE utility_network.route_node_with_work_task_info_on_update();
+            ";
+
+            RunDbCommandIfNotExists(transaction, updateTriggerCmdText);
         }
 
-        public void CreateRouteNodeTaskStatusView(string schemaName, IDbTransaction transaction = null)
+
+        public void CreateRouteSegmentWithTaskInfoView(string schemaName, IDbTransaction transaction = null)
         {
             // Create view
             string createViewCmdText = @"
-               CREATE OR REPLACE VIEW " + schemaName + @".route_node_with_task_status
+             CREATE OR REPLACE VIEW " + schemaName + @".route_segment_with_work_task_info
                  AS
-                select 
-                  *,
-                  work_task.status as work_task_status
-                from 
-                  route_network.route_node
-                left outer join utility_network.work_task on work_task.id = route_node.work_task_mrid     
+               SELECT route_segment.mrid,
+                    route_segment.coord,
+                    route_segment.marked_to_be_deleted,
+                    route_segment.delete_me,
+                    route_segment.work_task_mrid,
+                    route_segment.user_name,
+                    route_segment.application_name,
+                    route_segment.application_info,
+                    route_segment.lifecycle_deployment_state,
+                    route_segment.lifecycle_installation_date,
+                    route_segment.lifecycle_removal_date,
+                    route_segment.mapping_method,
+                    route_segment.mapping_vertical_accuracy,
+                    route_segment.mapping_horizontal_accuracy,
+                    route_segment.mapping_source_info,
+                    route_segment.mapping_survey_date,
+                    route_segment.safety_classification,
+                    route_segment.safety_remark,
+                    route_segment.routesegment_kind,
+                    route_segment.routesegment_width,
+                    route_segment.routesegment_height,
+                    route_segment.naming_name,
+                    route_segment.naming_description,
+                    route_segment.lifecycle_documentation_state,
+                        CASE
+                            WHEN work_task.status IS NULL THEN 'InService'::text
+                            WHEN work_task.status::text = 'Udført'::text THEN 'InService'::text
+                            ELSE 'Planned'::text
+                        END AS work_task_deployment_state,
+					 work_task.number as work_task_number,
+		             user_edit_history.created_username,
+		             timezone('Europe/Copenhagen', user_edit_history.created_timestamp) as created_timestamp,
+		             user_edit_history.edited_username,
+		             timezone('Europe/Copenhagen', user_edit_history.edited_timestamp) as edited_timestamp
+                   FROM route_network.route_segment
+                     LEFT JOIN utility_network.work_task ON work_task.id = route_segment.work_task_mrid
+                     LEFT JOIN route_network.user_edit_history ON user_edit_history.route_network_element_id = route_segment.mrid;
              ";
 
-            _logger.LogDebug($"Execute SQL: {createViewCmdText}");
+            RunDbCommand(transaction, createViewCmdText);
+
+            // Create insert trigger function
+            string insertTriggerfunctionCmdText = @"
+                CREATE OR REPLACE FUNCTION " + schemaName + @".route_segment_with_work_task_info_on_insert()
+                RETURNS trigger
+                LANGUAGE 'plpgsql'
+                COST 100
+                VOLATILE NOT LEAKPROOF
+                AS $BODY$	
+                  BEGIN	
+                      INSERT INTO route_network.route_segment (coord, marked_to_be_deleted, delete_me, work_task_mrid, user_name, application_name, application_info, lifecycle_deployment_state, lifecycle_installation_date, lifecycle_removal_date, mapping_method, mapping_vertical_accuracy, mapping_horizontal_accuracy, mapping_source_info, mapping_survey_date, safety_classification, safety_remark, routesegment_kind, routesegment_width, routesegment_height, naming_name, naming_description) VALUES 
+                        ( NEW.coord
+                        , NEW.marked_to_be_deleted
+                        , NEW.delete_me
+                        , NEW.work_task_mrid
+                        , NEW.user_name
+                        , NEW.application_name
+                        , NEW.application_info
+                        , NEW.lifecycle_deployment_state
+                        , NEW.lifecycle_installation_date
+                        , NEW.lifecycle_removal_date
+                        , NEW.mapping_method
+                        , NEW.mapping_vertical_accuracy
+                        , NEW.mapping_horizontal_accuracy
+                        , NEW.mapping_source_info
+                        , NEW.mapping_survey_date
+                        , NEW.safety_classification
+                        , NEW.safety_remark
+		                , NEW.routesegment_kind
+                        , NEW.routesegment_width
+                        , NEW.routesegment_height
+                        , NEW.naming_name
+                        , NEW.naming_description
+                        );
+                      RETURN NEW;
+                  END $BODY$;
+             ";
+
+            RunDbCommand(transaction, insertTriggerfunctionCmdText);
+
+
+            // Create insert trigger
+            string insertTriggerCmdText = @"
+              CREATE TRIGGER route_segment_with_work_task_info_on_insert_trigger
+                 INSTEAD OF INSERT
+                 ON utility_network.route_segment_with_work_task_info
+                 FOR EACH ROW
+                 EXECUTE PROCEDURE utility_network.route_segment_with_work_task_info_on_insert();
+            ";
+
+            RunDbCommandIfNotExists(transaction, insertTriggerCmdText);
+
+
+            // Create update trigger function
+            string updateTriggerfunctionCmdText = @"
+             CREATE OR REPLACE FUNCTION " + schemaName + @".route_segment_with_work_task_info_on_update()
+                RETURNS trigger
+                LANGUAGE 'plpgsql'
+                COST 100
+                VOLATILE NOT LEAKPROOF
+                AS $BODY$	
+                  BEGIN	
+                      UPDATE route_network.route_segment SET
+	                    coord = NEW.coord
+                        , marked_to_be_deleted = NEW.marked_to_be_deleted
+                        , delete_me = NEW.delete_me
+                        , user_name = NEW.user_name
+                        , application_name = NEW.application_name
+                        , application_info = NEW.application_info
+                        , lifecycle_deployment_state = NEW.lifecycle_deployment_state
+                        , lifecycle_installation_date = NEW.lifecycle_installation_date
+                        , lifecycle_removal_date = NEW.lifecycle_removal_date
+                        , mapping_method = NEW.mapping_method
+                        , mapping_vertical_accuracy = NEW.mapping_vertical_accuracy
+                        , mapping_horizontal_accuracy = NEW.mapping_horizontal_accuracy
+                        , mapping_source_info = NEW.mapping_source_info
+                        , mapping_survey_date = NEW.mapping_survey_date
+                        , safety_classification = NEW.safety_classification
+                        , safety_remark = NEW.safety_remark
+		                , routesegment_kind = NEW.routesegment_kind
+                        , routesegment_width = NEW.routesegment_width
+                        , routesegment_height = NEW.routesegment_height
+                        , naming_name = NEW.naming_name
+                        , naming_description = NEW.naming_description
+                       WHERE mrid = OLD.mrid
+		                ;
+                      RETURN NEW;
+                  END $BODY$;
+             ";
+
+            RunDbCommand(transaction, updateTriggerfunctionCmdText);
+
+
+            // Create update trigger
+            string updateTriggerCmdText = @"
+             CREATE TRIGGER route_segment_with_work_task_info_on_update_trigger
+                INSTEAD OF UPDATE 
+                ON utility_network.route_segment_with_work_task_info
+                FOR EACH ROW
+                EXECUTE PROCEDURE utility_network.route_segment_with_work_task_info_on_update();
+            ";
+
+            RunDbCommandIfNotExists(transaction, updateTriggerCmdText);
+        }
+
+        
+
+        public void CreateServiceTerminationView(string schemaName, IDbTransaction transaction = null)
+        {
+            string createViewCmdText = @"
+             CREATE OR REPLACE VIEW " + schemaName + @".service_termination_view
+                 AS
+                 SELECT inst.id,
+                    route_node.coord,
+                    'SDU'::text AS kind,
+                    inst.name,
+                    route_node.mapping_method AS method,
+                    route_node.lifecycle_deployment_state,
+                        CASE
+                            WHEN work_task.status IS NULL THEN 'InService'::text
+                            WHEN work_task.status::text = 'Udført'::text THEN 'InService'::text
+                            ELSE 'Planned'::text
+                        END AS work_task_deployment_state
+                   FROM route_network.route_node
+                     JOIN utility_network.service_termination inst ON inst.route_node_id = route_node.mrid
+                     LEFT JOIN utility_network.work_task ON work_task.id = route_node.work_task_mrid
+                  WHERE route_node.coord IS NOT NULL AND route_node.marked_to_be_deleted = false;
+             ";
+
+            RunDbCommand(transaction, createViewCmdText);
+        }
+
+        public void CreateStandAloneSpliceClosureView(string schemaName, IDbTransaction transaction = null)
+        {
+            string createViewCmdText = @"
+            CREATE OR REPLACE VIEW " + schemaName + @".stand_alone_splice_closure_view
+                 AS
+                 SELECT container.id,
+                    route_node.coord,
+                    route_node.naming_name AS name,
+                    container.spec_name AS kind,
+                    route_node.mapping_method AS method,
+                    route_node.lifecycle_deployment_state,
+                        CASE
+                            WHEN work_task.status IS NULL THEN 'InService'::text
+                            WHEN work_task.status::text = 'Udført'::text THEN 'InService'::text
+                            ELSE 'Planned'::text
+                        END AS work_task_deployment_state
+                   FROM route_network.route_node
+                     JOIN utility_network.node_container container ON container.route_node_id = route_node.mrid
+                     LEFT JOIN utility_network.work_task ON work_task.id = route_node.work_task_mrid
+                  WHERE route_node.coord IS NOT NULL AND route_node.marked_to_be_deleted = false AND (container.spec_category = 'SpliceClosure');
+             ";
 
             RunDbCommand(transaction, createViewCmdText);
         }

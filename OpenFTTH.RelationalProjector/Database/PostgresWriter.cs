@@ -854,7 +854,7 @@ namespace OpenFTTH.RelationalProjector.Database
                 VOLATILE NOT LEAKPROOF
                 AS $BODY$	
                   BEGIN	
-                      INSERT INTO route_network.node (coord, marked_to_be_deleted, delete_me, work_task_mrid, user_name, application_name, application_info, lifecycle_deployment_state, lifecycle_installation_date, lifecycle_removal_date, mapping_method, mapping_vertical_accuracy, mapping_horizontal_accuracy, mapping_source_info, mapping_survey_date, safety_classification, safety_remark, routenode_kind, routenode_function, naming_name, naming_description) VALUES 
+                      INSERT INTO route_network.route_node (coord, marked_to_be_deleted, delete_me, work_task_mrid, user_name, application_name, application_info, lifecycle_deployment_state, lifecycle_installation_date, lifecycle_removal_date, mapping_method, mapping_vertical_accuracy, mapping_horizontal_accuracy, mapping_source_info, mapping_survey_date, safety_classification, safety_remark, routenode_kind, routenode_function, naming_name, naming_description) VALUES 
                         ( NEW.coord
                         , NEW.marked_to_be_deleted
                         , NEW.delete_me

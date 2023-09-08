@@ -116,7 +116,7 @@ namespace OpenFTTH.RelationalProjector.Database
         public void CreateNodeContainerTable(string schemaName, IDbTransaction transaction = null)
         {
             // Create table
-            string createTableCmdText = $"CREATE TABLE IF NOT EXISTS {schemaName}.node_container (id uuid, route_node_id uuid, spec_name character varying(255), PRIMARY KEY(id));";
+            string createTableCmdText = $"CREATE TABLE IF NOT EXISTS {schemaName}.node_container (id uuid, route_node_id uuid, spec_name character varying(255), spec_category character varying(255), PRIMARY KEY(id));";
             _logger.LogDebug($"Execute SQL: {createTableCmdText}");
 
             RunDbCommand(transaction, createTableCmdText);
@@ -134,15 +134,17 @@ namespace OpenFTTH.RelationalProjector.Database
 
             using var insertCmd = conn.CreateCommand();
 
-            insertCmd.CommandText = $"INSERT INTO {schemaName}.node_container (id, route_node_id, spec_name) VALUES (@id, @route_node_id, @spec_name)";
+            insertCmd.CommandText = $"INSERT INTO {schemaName}.node_container (id, route_node_id, spec_name, spec_category) VALUES (@id, @route_node_id, @spec_name, @spec_category)";
 
             var idParam = insertCmd.Parameters.Add("id", NpgsqlTypes.NpgsqlDbType.Uuid);
             var routeNodeIdParam = insertCmd.Parameters.Add("route_node_id", NpgsqlTypes.NpgsqlDbType.Uuid);
             var specNameParam = insertCmd.Parameters.Add("spec_name", NpgsqlTypes.NpgsqlDbType.Varchar);
+            var specCategoryParam = insertCmd.Parameters.Add("spec_category", NpgsqlTypes.NpgsqlDbType.Varchar);
 
             idParam.Value = nodeContainerState.Id;
             routeNodeIdParam.Value = nodeContainerState.RouteNodeId;
             specNameParam.Value = nodeContainerState.SpecificationName;
+            specCategoryParam.Value = nodeContainerState.SpecificationCategory;
 
             insertCmd.ExecuteNonQuery();
         }
@@ -152,11 +154,12 @@ namespace OpenFTTH.RelationalProjector.Database
             using (var conn = GetConnection() as NpgsqlConnection)
             {
                 conn.Open();
-                using (var updateCmd = new NpgsqlCommand($"UPDATE {schemaName}.node_container SET spec_name = @spec_name WHERE id = @id", conn))
+                using (var updateCmd = new NpgsqlCommand($"UPDATE {schemaName}.node_container SET spec_name = @spec_name, spec_category = @spec_category  WHERE id = @id", conn))
                 {
                     updateCmd.Parameters.Add("id", NpgsqlTypes.NpgsqlDbType.Uuid).Value = nodeContainerState.Id;
 
                     updateCmd.Parameters.Add("spec_name", NpgsqlTypes.NpgsqlDbType.Varchar).Value = nodeContainerState.SpecificationName;
+                    updateCmd.Parameters.Add("spec_category", NpgsqlTypes.NpgsqlDbType.Varchar).Value = nodeContainerState.SpecificationCategory;
 
                     updateCmd.ExecuteNonQuery();
                 }
@@ -189,11 +192,11 @@ namespace OpenFTTH.RelationalProjector.Database
                     truncateCmd.ExecuteNonQuery();
                 }
 
-                using (var writer = conn.BeginBinaryImport($"copy {schemaName}.node_container (id, route_node_id, spec_name) from STDIN (FORMAT BINARY)"))
+                using (var writer = conn.BeginBinaryImport($"copy {schemaName}.node_container (id, route_node_id, spec_name, spec_category) from STDIN (FORMAT BINARY)"))
                 {
                     foreach (var nodeContainer in state.NodeContainerStates)
                     {
-                        writer.WriteRow(nodeContainer.Id, nodeContainer.RouteNodeId, nodeContainer.SpecificationName);
+                        writer.WriteRow(nodeContainer.Id, nodeContainer.RouteNodeId, nodeContainer.SpecificationName, nodeContainer.SpecificationCategory);
                     }
 
                     writer.Complete();

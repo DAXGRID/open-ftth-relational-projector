@@ -36,6 +36,8 @@ namespace OpenFTTH.RelationalProjector.State
 
             nodeContainerState.SpecificationName = nodeContainerSpecification.Name;
 
+            nodeContainerState.SpecificationCategory = nodeContainerSpecification.Category;
+
             return nodeContainerState;
         }
 
@@ -46,7 +48,7 @@ namespace OpenFTTH.RelationalProjector.State
 
             var nodeContainerSpecification = _nodeContainerSpecificationById[@event.Container.SpecificationId];
 
-            var nodeContainerState = new NodeContainerState(LatestChangeType.NEW, @event.Container, nodeContainerSpecification.Name);
+            var nodeContainerState = new NodeContainerState(LatestChangeType.NEW, @event.Container, nodeContainerSpecification.Name, nodeContainerSpecification.Category);
             _nodeContainerStateById[@event.Container.Id] = nodeContainerState;
 
             // Update relation dictionaries

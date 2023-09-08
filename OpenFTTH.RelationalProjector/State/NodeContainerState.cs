@@ -12,13 +12,15 @@ namespace OpenFTTH.RelationalProjector.State
         public Guid RouteNodeId { get; set; }
         public Guid SpecificationId { get; set; }
         public string SpecificationName { get; set; }
+        public string SpecificationCategory { get; set; }
 
-        public NodeContainerState(LatestChangeType latestChangeType, NodeContainer nodeContainer, string specName) : base(latestChangeType)
+        public NodeContainerState(LatestChangeType latestChangeType, NodeContainer nodeContainer, string specName, string specCategory) : base(latestChangeType)
         {
             Id = nodeContainer.Id;
             RouteNodeId = nodeContainer.RouteNodeId;
             SpecificationId = nodeContainer.SpecificationId;
             SpecificationName = specName;
+            SpecificationCategory = specCategory;
         }
     }
 }

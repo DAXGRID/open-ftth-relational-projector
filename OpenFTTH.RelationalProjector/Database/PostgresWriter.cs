@@ -494,7 +494,7 @@ namespace OpenFTTH.RelationalProjector.Database
         public void CreateWorkTaskTable(string schemaName, IDbTransaction transaction = null)
         {
             // Create table
-            string createTableCmdText = $"CREATE TABLE IF NOT EXISTS {schemaName}.work_task (id uuid, status character varying(255), PRIMARY KEY(id));";
+            string createTableCmdText = $"CREATE TABLE IF NOT EXISTS {schemaName}.work_task (id uuid, number character varying(255), status character varying(255), PRIMARY KEY(id));";
             _logger.LogDebug($"Execute SQL: {createTableCmdText}");
 
             RunDbCommand(transaction, createTableCmdText);
@@ -508,12 +508,14 @@ namespace OpenFTTH.RelationalProjector.Database
 
             using var insertCmd = conn.CreateCommand();
 
-            insertCmd.CommandText = $"INSERT INTO {schemaName}.work_task (id, status) VALUES (@id, @status)";
+            insertCmd.CommandText = $"INSERT INTO {schemaName}.work_task (id, number, status) VALUES (@id, @number, @status)";
 
             var idParam = insertCmd.Parameters.Add("id", NpgsqlTypes.NpgsqlDbType.Uuid);
+            var numberParam = insertCmd.Parameters.Add("number", NpgsqlTypes.NpgsqlDbType.Varchar);
             var statusParam = insertCmd.Parameters.Add("status", NpgsqlTypes.NpgsqlDbType.Varchar);
 
             idParam.Value = workTaskState.Id;
+            numberParam.Value = workTaskState.Number;
             statusParam.Value = workTaskState.Status;
 
             insertCmd.ExecuteNonQuery();
@@ -549,11 +551,11 @@ namespace OpenFTTH.RelationalProjector.Database
                     truncateCmd.ExecuteNonQuery();
                 }
 
-                using (var writer = conn.BeginBinaryImport($"copy {schemaName}.work_task (id, status) from STDIN (FORMAT BINARY)"))
+                using (var writer = conn.BeginBinaryImport($"copy {schemaName}.work_task (id, number, status) from STDIN (FORMAT BINARY)"))
                 {
                     foreach (var workTask in state.WorkTaskStates)
                     {
-                        writer.WriteRow(workTask.Id, workTask.Status);
+                        writer.WriteRow(workTask.Id, workTask.Number, workTask.Status);
                     }
 
                     writer.Complete();

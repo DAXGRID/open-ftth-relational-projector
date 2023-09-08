@@ -1,5 +1,4 @@
-﻿using OpenFTTH.Work.API.Model;
-using OpenFTTH.Work.Business.Events;
+﻿using OpenFTTH.Work.Business.Events;
 using System;
 
 namespace OpenFTTH.RelationalProjector.State
@@ -10,6 +9,7 @@ namespace OpenFTTH.RelationalProjector.State
     public class WorkTaskState
     {
         public Guid Id { get; set; }
+        public string Number { get; set; }
         public string Status { get; set; }
 
         public static WorkTaskState Create(WorkTaskCreated workTaskCreated)
@@ -17,7 +17,8 @@ namespace OpenFTTH.RelationalProjector.State
             return new WorkTaskState()
             {
                 Id = workTaskCreated.WorkTaskId.Value,
-                Status = workTaskCreated.WorkTask.Status
+                Status = workTaskCreated.WorkTask.Status,
+                Number = workTaskCreated.WorkTask.Number
             };
         }
     }

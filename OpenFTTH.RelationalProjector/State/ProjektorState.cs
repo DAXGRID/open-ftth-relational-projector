@@ -66,7 +66,7 @@ namespace OpenFTTH.RelationalProjector.State
         public void ProcessNodeContainerRemoved(Guid nodeContainerId)
         {
             if (_nodeContainerStateById.ContainsKey(nodeContainerId))
-                _nodeContainerSpecificationById.Remove(nodeContainerId);
+                _nodeContainerStateById.Remove(nodeContainerId);
 
             if (_nodeContainerToRouteNodeRelation.ContainsKey(nodeContainerId))
             {

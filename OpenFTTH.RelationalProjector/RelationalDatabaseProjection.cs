@@ -80,7 +80,6 @@ namespace OpenFTTH.RelationalProjector
             _dbWriter.CreateWorkTaskTable(_schemaName);
 
             // Views
-            _dbWriter.CreateRouteSegmentLabelView(_schemaName);
             _dbWriter.CreateRouteNodeView(_schemaName);
             _dbWriter.CreateRouteSegmentView(_schemaName);
             _dbWriter.CreateRouteSegmentWithTaskInfoView(_schemaName);

@@ -686,41 +686,6 @@ namespace OpenFTTH.RelationalProjector.Database
 
         #region Views used for GIS map visualisation
 
-        public void CreateRouteSegmentLabelView(string schemaName, IDbTransaction transaction = null)
-        {
-            // Create view
-            string createViewCmdText = @"
-                CREATE OR REPLACE VIEW " + schemaName + @".route_segment_label AS 
-                select 
-                    mrid,
-	                coord,
-	                (
-	                select 
-	                   string_agg(
-						  case 
-						    when outer_diameter = 0 then cast(n_conduit as text) || ' stk kabel'
-						    else cast(n_conduit as text) || ' stk Ø' || cast(outer_diameter as text)
-						  end
-					  ,', ')
-	                from
-	                (
-		                select i2r.route_network_element_id, outer_diameter, count(*) as n_conduit
-		                from utility_network.rel_interest_to_route_element i2r
-		                inner join utility_network.span_equipment on span_equipment.interest_id = i2r.interest_id
-		                group by i2r.route_network_element_id, span_equipment.outer_diameter
-		                order by i2r.route_network_element_id, span_equipment.outer_diameter
-	                ) coduit_label 
-	                where 
-	                  route_network_element_id = mrid
-	                ) as label
-                from
-                  route_network.route_segment
-                where exists (
-	                select null from utility_network.rel_interest_to_route_element i2r2 where i2r2.route_network_element_id = route_segment.mrid
-                )";
-
-            RunDbCommand(transaction, createViewCmdText);
-        }
 
         public void CreateRouteNodeView(string schemaName, IDbTransaction transaction = null)
         {

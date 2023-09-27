@@ -189,7 +189,7 @@ namespace OpenFTTH.RelationalProjector.State
 
             return stateChanges;
         }
-        
+
         public List<ObjectState> ProcessSpanEquipmentRemoved(Guid spanEquipmentId)
         {
             List<ObjectState> stateChanges = new List<ObjectState>();
@@ -544,11 +544,28 @@ namespace OpenFTTH.RelationalProjector.State
             {
                 var serviceTermination = _serviceTerminationStateByEquipmentId[@event.TerminalEquipmentId];
                 serviceTermination.Name = @event.NamingInfo?.Name;
-
                 return serviceTermination;
             }
 
             return null;
+        }
+
+        public List<ObjectState> ProcessTerminalEquipmentAddressInfoChanged(TerminalEquipmentAddressInfoChanged @event)
+        {
+            if (_serviceTerminationStateByEquipmentId.ContainsKey(@event.TerminalEquipmentId))
+            {
+                var serviceTerminationState = _serviceTerminationStateByEquipmentId[@event.TerminalEquipmentId];
+
+                serviceTerminationState.LatestChangeType = LatestChangeType.UPDATED;
+
+                serviceTerminationState.AccessAddressId = @event.AddressInfo.AccessAddressId;
+
+                serviceTerminationState.UnitAddressId = @event.AddressInfo.UnitAddressId;
+
+                return new List<ObjectState> { serviceTerminationState };
+            }
+            else
+                return new List<ObjectState>();
         }
 
         public void ProcessTerminalEquipmentRemoved(Guid terminalEquipmentId)

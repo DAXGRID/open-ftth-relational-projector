@@ -62,6 +62,7 @@ namespace OpenFTTH.RelationalProjector
             ProjectEventAsync<TerminalEquipmentPlacedInNodeContainer>(Project);
             ProjectEventAsync<TerminalEquipmentRemoved>(Project);
             ProjectEventAsync<TerminalEquipmentNamingInfoChanged>(Project);
+            ProjectEventAsync<TerminalEquipmentAddressInfoChanged>(Project);
 
             // Work tasks
             ProjectEventAsync<WorkTaskCreated>(Project);
@@ -78,14 +79,6 @@ namespace OpenFTTH.RelationalProjector
             _dbWriter.CreateServiceTerminationTable(_schemaName);
             _dbWriter.CreateConduitSlackTable(_schemaName);
             _dbWriter.CreateWorkTaskTable(_schemaName);
-
-            // Views
-            _dbWriter.CreateRouteNodeView(_schemaName);
-            _dbWriter.CreateRouteSegmentView(_schemaName);
-            _dbWriter.CreateRouteSegmentWithTaskInfoView(_schemaName);
-            _dbWriter.CreateRouteNodeWithTaskInfoView(_schemaName);
-            _dbWriter.CreateServiceTerminationView(_schemaName);
-            _dbWriter.CreateStandAloneSpliceClosureView(_schemaName);
         }
 
         private Task Project(IEventEnvelope eventEnvelope)
@@ -191,6 +184,10 @@ namespace OpenFTTH.RelationalProjector
 
                 case (TerminalEquipmentNamingInfoChanged @event):
                     Handle(@event);
+                    break;
+
+                case (TerminalEquipmentAddressInfoChanged @event):
+                    ApplyStateChanges(_state.ProcessTerminalEquipmentAddressInfoChanged(@event));
                     break;
 
 
@@ -367,6 +364,11 @@ namespace OpenFTTH.RelationalProjector
                                 _dbWriter.UpdateSpanEquipment(_schemaName, spanEquipmentState);
                             if (spanEquipmentState.LatestChangeType == LatestChangeType.REMOVED)
                                 _dbWriter.DeleteSpanEquipment(_schemaName, spanEquipmentState.Id);
+                            break;
+
+                        case ServiceTerminationState serviceTerminationState:
+                            if (serviceTerminationState.LatestChangeType == LatestChangeType.UPDATED)
+                                _dbWriter.UpdateServiceTermination(_schemaName, serviceTerminationState);
                             break;
 
                     }

@@ -709,12 +709,12 @@ namespace OpenFTTH.RelationalProjector.Database
                     return;
                 }
                 else
-                    throw (ex);
+                {
+                    throw;
+                }
             }
         }
 
-
         #endregion
-      
     }
 }

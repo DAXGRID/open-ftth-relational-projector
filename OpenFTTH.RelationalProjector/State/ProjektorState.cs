@@ -1,9 +1,11 @@
-﻿using OpenFTTH.RouteNetwork.API.Model;
+﻿using NetTopologySuite.Triangulate;
+using OpenFTTH.RouteNetwork.API.Model;
 using OpenFTTH.UtilityGraphService.API.Model.UtilityNetwork;
 using OpenFTTH.UtilityGraphService.Business.NodeContainers.Events;
 using OpenFTTH.UtilityGraphService.Business.SpanEquipments.Events;
 using OpenFTTH.UtilityGraphService.Business.TerminalEquipments.Events;
 using OpenFTTH.Work.Business.Events;
+using Polly;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -117,6 +119,7 @@ namespace OpenFTTH.RelationalProjector.State
         private Dictionary<Guid, SpanEquipmentState> _spanEquipmentStateByRootSegmentId = new();
         private Dictionary<Guid, ConduitSlackState> _conduitSlackStateByRouteNodeId = new();
         private Dictionary<Guid, List<SpanEquipmentState>> _spanEquipmentParentsByChildId = new();
+        private Dictionary<Guid, TerminalConnectivityState> _terminalConnectivityStateById = new();
 
         public IEnumerable<SpanEquipmentState> SpanEquipmentStates => _spanEquipmentStateById.Values;
         public IEnumerable<ConduitSlackState> ConduitSlackStates => _conduitSlackStateByRouteNodeId.Values;
@@ -135,6 +138,7 @@ namespace OpenFTTH.RelationalProjector.State
 
             var spanEquipmentState = SpanEquipmentState.Create(equipment, spanEquipmentSpecification, spanStructureSpecification);
 
+
             _spanEquipmentStateById[equipment.Id] = spanEquipmentState;
             _spanEquipmentStateByRootSegmentId[spanEquipmentState.RootSegmentId] = spanEquipmentState;
 
@@ -149,6 +153,15 @@ namespace OpenFTTH.RelationalProjector.State
             }
 
             stateChanges.Add(spanEquipmentState);
+
+
+            // process eventurally utility hops
+            if (equipment.UtilityNetworkHops != null && (equipment.UtilityNetworkHops.Length > 0))
+            {
+                stateChanges.AddRange(ProcessSpanEquipmentAffixedToParent(
+                    new SpanEquipmentAffixedToParent(equipment.Id, equipment.UtilityNetworkHops)
+                ));
+            }
 
             return stateChanges;
         }
@@ -279,96 +292,6 @@ namespace OpenFTTH.RelationalProjector.State
             }
         }
 
-        public List<ObjectState> ProcessSpanEquipmentConnects(SpanSegmentsConnectedToSimpleTerminals @event)
-        {
-            List<ObjectState> stateChanges = new List<ObjectState>();
-
-            if (_spanEquipmentStateById.TryGetValue(@event.SpanEquipmentId, out var existingSpanEquipmentState))
-            {
-                foreach (var connect in @event.Connects)
-                {
-                    if (connect.SegmentId == existingSpanEquipmentState.RootSegmentId)
-                    {
-                        if (connect.ConnectionDirection == SpanSegmentToTerminalConnectionDirection.FromSpanSegmentToTerminal)
-                        {
-                            if (IsSpanEquipmentToNodeSlack(existingSpanEquipmentState))
-                            {
-                                stateChanges.AddRange(DecrementConduitSlackEndCount(existingSpanEquipmentState.ToNodeId));
-                            }
-
-                            existingSpanEquipmentState.RootSegmentHasToConnection = true;
-                            existingSpanEquipmentState.RootSegmentToTerminalId = connect.TerminalId;
-
-                        }
-                        else if (connect.ConnectionDirection == SpanSegmentToTerminalConnectionDirection.FromTerminalToSpanSegment)
-                        {
-                            if (IsSpanEquipmentFromNodeSlack(existingSpanEquipmentState))
-                            {
-                                stateChanges.AddRange(DecrementConduitSlackEndCount(existingSpanEquipmentState.FromNodeId));
-                            }
-
-                            existingSpanEquipmentState.RootSegmentHasFromConnection = true;
-                            existingSpanEquipmentState.RootSegmentFromTerminalId = connect.TerminalId;
-                        }
-                    }
-                }
-            }
-
-            return stateChanges;
-        }
-
-        public List<ObjectState> ProcessSpanEquipmentDisconnects(SpanSegmentDisconnectedFromTerminal @event)
-        {
-            List<SpanSegmentToTerminalDisconnectInfo> disconnects = new List<SpanSegmentToTerminalDisconnectInfo>()
-            {
-                new SpanSegmentToTerminalDisconnectInfo(@event.SpanSegmentId, @event.TerminalId)
-            };
-
-            return ProcessSpanEquipmentDisconnects(@event.SpanEquipmentId, disconnects);
-        }
-
-        public List<ObjectState> ProcessSpanEquipmentDisconnects(SpanSegmentsDisconnectedFromTerminals @event)
-        {
-            return ProcessSpanEquipmentDisconnects(@event.SpanEquipmentId, @event.Disconnects.ToList());
-        }
-
-        private List<ObjectState> ProcessSpanEquipmentDisconnects(Guid spanEquipmentId, List<SpanSegmentToTerminalDisconnectInfo> disconnects)
-        {
-            List<ObjectState> stateChanges = new List<ObjectState>();
-
-            if (_spanEquipmentStateById.TryGetValue(spanEquipmentId, out var spanEquipmentState))
-            {
-                foreach (var disconnect in disconnects)
-                {
-                    if (disconnect.SegmentId == spanEquipmentState.RootSegmentId)
-                    {
-                        if (spanEquipmentState.RootSegmentFromTerminalId == disconnect.TerminalId)
-                        {
-                            spanEquipmentState.RootSegmentFromTerminalId = Guid.Empty;
-                            spanEquipmentState.RootSegmentHasFromConnection = false;
-
-                            if (IsSpanEquipmentToNodeSlack(spanEquipmentState))
-                            {
-                                stateChanges.AddRange(IncrementConduitSlackEndCount(spanEquipmentState.ToNodeId));
-                            }
-                        }
-                        else if (spanEquipmentState.RootSegmentToTerminalId == disconnect.TerminalId)
-                        {
-                            spanEquipmentState.RootSegmentToTerminalId = Guid.Empty;
-                            spanEquipmentState.RootSegmentHasToConnection = false;
-
-                            if (IsSpanEquipmentFromNodeSlack(spanEquipmentState))
-                            {
-                                stateChanges.AddRange(IncrementConduitSlackEndCount(spanEquipmentState.FromNodeId));
-                            }
-                        }
-                    }
-                }
-            }
-
-            return stateChanges;
-        }
-
         public List<ObjectState> ProcessSpanEquipmentAffixedToParent(SpanEquipmentAffixedToParent @event)
         {
             List<ObjectState> stateChanges = new List<ObjectState>();
@@ -447,9 +370,22 @@ namespace OpenFTTH.RelationalProjector.State
             return _spanStructureSpecificationById[spanStructureSpecificationId];
         }
 
+        private bool IsSpanEquipmentSlack(SpanEquipmentState spanEquipmentState, Guid routeNodeId)
+        {
+            if (spanEquipmentState.IsCustomerConduit && !_routeNodeToNodeContainerRelation.ContainsKey(routeNodeId) && !spanEquipmentState.HasChildSpanEquipments)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+
         private bool IsSpanEquipmentFromNodeSlack(SpanEquipmentState spanEquipmentState)
         {
-            if (spanEquipmentState.IsCustomerConduit && !_routeNodeToNodeContainerRelation.ContainsKey(spanEquipmentState.FromNodeId) && !spanEquipmentState.RootSegmentHasFromConnection && !spanEquipmentState.HasChildSpanEquipments)
+            if (spanEquipmentState.IsCustomerConduit && !spanEquipmentState.RootSegmentHasFromConnection && !spanEquipmentState.HasChildSpanEquipments)
             {
                 return true;
             }
@@ -461,7 +397,7 @@ namespace OpenFTTH.RelationalProjector.State
 
         private bool IsSpanEquipmentToNodeSlack(SpanEquipmentState spanEquipmentState)
         {
-            if (spanEquipmentState.IsCustomerConduit && !_routeNodeToNodeContainerRelation.ContainsKey(spanEquipmentState.ToNodeId) && !spanEquipmentState.RootSegmentHasToConnection && !spanEquipmentState.HasChildSpanEquipments)
+            if (spanEquipmentState.IsCustomerConduit && !spanEquipmentState.RootSegmentHasToConnection && !spanEquipmentState.HasChildSpanEquipments)
             {
                 return true;
             }
@@ -630,6 +566,77 @@ namespace OpenFTTH.RelationalProjector.State
             }
 
             return result;
+        }
+    }
+
+    public class TerminalConnectivityState
+    {
+        public Guid TerminalId { get; set; }
+
+        public SpanEquipmentState segment1 { get; set; }
+        public SpanEquipmentState segment2 { get; set; }
+        public Guid SharedNode { get; set; }
+
+        public Guid GetSharedNodeId()
+        {
+            if (SharedNode != Guid.Empty)
+                return SharedNode;
+
+            if (segment1 == null || segment2 == null)
+                throw new ApplicationException("GetSharedNodeId must not be called when segment variable are null");
+
+            if (segment1.FromNodeId == segment2.FromNodeId)
+                return segment1.FromNodeId;
+            else if (segment1.FromNodeId == segment2.ToNodeId)
+                return segment1.FromNodeId;
+            else if (segment1.ToNodeId == segment2.ToNodeId)
+                return segment1.ToNodeId;
+            else if (segment1.ToNodeId == segment2.FromNodeId)
+                return segment1.ToNodeId;
+            else
+                throw new ApplicationException($"Segments {segment1.Id} and {segment2.Id} is not connected");
+        }
+
+        public void RemoveSegment(Guid segmentId)
+        {
+            if (segment1 != null && segment1.Id == segmentId)
+                segment1 = null;
+
+            if (segment2 != null && segment2.Id == segmentId)
+                segment2 = null;
+        }
+
+        public void AddSegment(SpanEquipmentState segmentState)
+        {
+            if (segment1 != null && segment1.Id == segmentState.Id)
+                return;
+
+            if (segment2 != null && segment2.Id == segmentState.Id)
+                return;
+
+            if (segment1 == null)
+                segment1 = segmentState;
+            else if (segment2 == null)
+                segment2 = segmentState;
+
+            if (IsFullyConnected())
+                SharedNode = GetSharedNodeId();
+        }
+
+        public bool IsFullyConnected()
+        {
+            if (segment1 != null && segment2 != null)
+                return true;
+            else
+                return false;
+        }
+
+        public bool IsFullyDisconnected()
+        {
+            if (segment1 == null && segment2 == null)
+                return true;
+            else
+                return false;
         }
     }
 }

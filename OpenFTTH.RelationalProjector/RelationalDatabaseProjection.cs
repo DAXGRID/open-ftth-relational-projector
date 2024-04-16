@@ -45,9 +45,6 @@ namespace OpenFTTH.RelationalProjector
             ProjectEventAsync<SpanEquipmentPlacedInRouteNetwork>(Project);
             ProjectEventAsync<SpanEquipmentMoved>(Project);
             ProjectEventAsync<SpanEquipmentRemoved>(Project);
-            ProjectEventAsync<SpanSegmentsConnectedToSimpleTerminals>(Project);
-            ProjectEventAsync<SpanSegmentsDisconnectedFromTerminals>(Project);
-            ProjectEventAsync<SpanSegmentDisconnectedFromTerminal>(Project);
             ProjectEventAsync<SpanEquipmentAffixedToParent>(Project);
             ProjectEventAsync<SpanEquipmentDetachedFromParent>(Project);
             ProjectEventAsync<SpanEquipmentAddressInfoChanged>(Project);
@@ -129,18 +126,6 @@ namespace OpenFTTH.RelationalProjector
 
                 case (SpanEquipmentRemoved @event):
                     ApplyStateChanges(_state.ProcessSpanEquipmentRemoved(@event.SpanEquipmentId));
-                    break;
-
-                case (SpanSegmentsConnectedToSimpleTerminals @event):
-                    ApplyStateChanges(_state.ProcessSpanEquipmentConnects(@event));
-                    break;
-
-                case (SpanSegmentDisconnectedFromTerminal @event):
-                    ApplyStateChanges(_state.ProcessSpanEquipmentDisconnects(@event));
-                    break;
-
-                case (SpanSegmentsDisconnectedFromTerminals @event):
-                    ApplyStateChanges(_state.ProcessSpanEquipmentDisconnects(@event));
                     break;
 
                 case (SpanEquipmentAffixedToParent @event):

@@ -190,6 +190,14 @@ namespace OpenFTTH.RelationalProjector.State
             return stateChanges;
         }
 
+        public List<ObjectState> ProcessSpanEquipmentMerged(SpanEquipmentMerged @event)
+        {
+            // The logic should be applied as with move
+            return ProcessSpanEquipmentMoved(
+                new SpanEquipmentMoved(@event.SpanEquipmentId, @event.NodesOfInterestIds)
+            );
+        }
+
         public List<ObjectState> ProcessSpanEquipmentRemoved(Guid spanEquipmentId)
         {
             List<ObjectState> stateChanges = new List<ObjectState>();

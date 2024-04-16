@@ -51,6 +51,7 @@ namespace OpenFTTH.RelationalProjector
             ProjectEventAsync<SpanEquipmentAffixedToParent>(Project);
             ProjectEventAsync<SpanEquipmentDetachedFromParent>(Project);
             ProjectEventAsync<SpanEquipmentAddressInfoChanged>(Project);
+            ProjectEventAsync<SpanEquipmentMerged>(Project);
 
             // Span equipment specification events
             ProjectEventAsync<SpanEquipmentSpecificationAdded>(Project);
@@ -148,6 +149,10 @@ namespace OpenFTTH.RelationalProjector
 
                 case (SpanEquipmentDetachedFromParent @event):
                     ApplyStateChanges(_state.ProcessSpanEquipmentDetachedFromParent(@event));
+                    break;
+
+                case (SpanEquipmentMerged @event):
+                    ApplyStateChanges(_state.ProcessSpanEquipmentMerged(@event));
                     break;
 
 

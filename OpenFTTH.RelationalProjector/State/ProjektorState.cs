@@ -8,6 +8,7 @@ using OpenFTTH.Work.Business.Events;
 using Polly;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 namespace OpenFTTH.RelationalProjector.State
@@ -443,7 +444,8 @@ namespace OpenFTTH.RelationalProjector.State
             }
             else
             {
-                return new List<ConduitSlackState>();
+                // This should never happen, so in cases it does, some state is bad.
+                throw new UnreachableException($"Could not find conduitSlackStateByRouteNodeId with nodeId: '{nodeId}' in decrement operation, this should never happen...");
             }
         }
 

@@ -73,6 +73,7 @@ namespace OpenFTTH.RelationalProjector
             _dbWriter.CreateSchema(_schemaName);
             _dbWriter.CreateNodeContainerTable(_schemaName);
             _dbWriter.CreateRouteElementToInterestTable(_schemaName);
+            _dbWriter.CreateRouteElementToFiberCableTable(_schemaName);
             _dbWriter.CreateSpanEquipmentTable(_schemaName);
             _dbWriter.CreateServiceTerminationTable(_schemaName);
             _dbWriter.CreateConduitSlackTable(_schemaName);
@@ -361,6 +362,22 @@ namespace OpenFTTH.RelationalProjector
                                 _dbWriter.UpdateServiceTermination(_schemaName, serviceTerminationState);
                             break;
 
+                        case CableToRouteElementState cableToRouteElementState:
+                            if (cableToRouteElementState.LatestChangeType == LatestChangeType.NEW)
+                            {
+                                _dbWriter.InsertGuidsIntoRouteElementToFiberCableTable(_schemaName, cableToRouteElementState.CableId, cableToRouteElementState.RouteNetworkElementIds);
+                            }
+                            else if (cableToRouteElementState.LatestChangeType == LatestChangeType.UPDATED)
+                            {
+                                _dbWriter.DeleteGuidsFromRouteElementToFiberCableTable(_schemaName, cableToRouteElementState.CableId);
+                                _dbWriter.InsertGuidsIntoRouteElementToFiberCableTable(_schemaName, cableToRouteElementState.CableId, cableToRouteElementState.RouteNetworkElementIds);
+                            }
+                            else if (cableToRouteElementState.LatestChangeType == LatestChangeType.REMOVED)
+                            {
+                                _dbWriter.DeleteGuidsFromRouteElementToFiberCableTable(_schemaName, cableToRouteElementState.CableId);
+                            }
+                            break;
+
                     }
                 }
             }
@@ -371,6 +388,9 @@ namespace OpenFTTH.RelationalProjector
             PrepareDatabase();
 
             _logger.LogInformation($"Bulk write to tables in schema: '{_schemaName}' started...");
+
+            _logger.LogInformation($"Writing cable to route network relations...");
+            _dbWriter.BulkCopyGuidsToRouteElementToFiberCableTableTable(_schemaName, _state);
 
             _logger.LogInformation($"Writing route element interest relations...");
             _dbWriter.BulkCopyGuidsToRouteElementToInterestTable(_schemaName, _state);

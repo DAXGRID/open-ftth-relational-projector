@@ -112,6 +112,97 @@ namespace OpenFTTH.RelationalProjector.Database
         }
         #endregion
 
+        #region Route network element to fiber cable (rel_interest_to_route_element)
+        public void CreateRouteElementToFiberCableTable(string schemaName, IDbTransaction transaction = null)
+        {
+            string createTableCmdText = $"CREATE TABLE IF NOT EXISTS {schemaName}.rel_fiber_cable_to_route_element (fiber_cable_id uuid, route_network_element_id uuid, seq_no integer, PRIMARY KEY(fiber_cable_id, route_network_element_id, seq_no));";
+            _logger.LogDebug($"Execute SQL: {createTableCmdText}");
+
+            RunDbCommand(transaction, createTableCmdText);
+
+            // Create index on route_network_element_id column
+            string createIndexCmdText1 = $"CREATE INDEX IF NOT EXISTS idx_rel_fiber_cable_to_route_element_route_network_element_id ON {schemaName}.rel_fiber_cable_to_route_element(route_network_element_id);";
+            RunDbCommand(transaction, createIndexCmdText1);
+
+            // Create index on fiber_cable_id column
+            string createIndexCmdText2 = $"CREATE INDEX IF NOT EXISTS idx_rel_fiber_cable_to_route_element_fiber_cable_id_id ON {schemaName}.rel_fiber_cable_to_route_element(fiber_cable_id);";
+            RunDbCommand(transaction, createIndexCmdText2);
+
+        }
+
+        public void BulkCopyGuidsToRouteElementToFiberCableTableTable(string schemaName, ProjektorState state)
+        {
+            using (var conn = GetConnection() as NpgsqlConnection)
+            {
+                conn.Open();
+
+                // Truncate the table
+                using (var truncateCmd = new NpgsqlCommand($"truncate table {schemaName}.rel_fiber_cable_to_route_element", conn))
+                {
+                    truncateCmd.ExecuteNonQuery();
+                }
+
+                using (var writer = conn.BeginBinaryImport($"copy {schemaName}.rel_fiber_cable_to_route_element (route_network_element_id, fiber_cable_id, seq_no) from STDIN (FORMAT BINARY)"))
+                {
+                    foreach (var fiberCableRouteElementRelations in state.FiberCableToRouteElementRelations)
+                    {
+                        int seqNo = 1;
+                        foreach (var routeElementId in fiberCableRouteElementRelations.Value)
+                        {
+                            writer.WriteRow(routeElementId, fiberCableRouteElementRelations.Key, seqNo);
+
+                            seqNo++;
+                        }
+                    }
+
+                    writer.Complete();
+                }
+            }
+        }
+
+        public void InsertGuidsIntoRouteElementToFiberCableTable(string schemaName, Guid fiberCableId, IEnumerable<Guid> routeElementIds)
+        {
+            using (var conn = GetConnection() as NpgsqlConnection)
+            {
+                conn.Open();
+                // Write guids to table
+                using (var insertCmd = new NpgsqlCommand($"INSERT INTO {schemaName}.rel_fiber_cable_to_route_element (route_network_element_id, fiber_cable_id, seq_no) VALUES (@r, @i, @s)", conn))
+                {
+                    var routeNetworkElementIdparam = insertCmd.Parameters.Add("r", NpgsqlTypes.NpgsqlDbType.Uuid);
+                    var interestIdparam = insertCmd.Parameters.Add("i", NpgsqlTypes.NpgsqlDbType.Uuid);
+                    var seqNoparam = insertCmd.Parameters.Add("s", NpgsqlTypes.NpgsqlDbType.Integer);
+
+                    var seqNo = 1;
+
+                    foreach (var guid in routeElementIds)
+                    {
+                        interestIdparam.Value = fiberCableId;
+                        routeNetworkElementIdparam.Value = guid;
+                        seqNoparam.Value = seqNo;
+
+                        insertCmd.ExecuteNonQuery();
+
+                        seqNo++;
+                    }
+                }
+            }
+        }
+
+        public void DeleteGuidsFromRouteElementToFiberCableTable(string schemaName, Guid interestId)
+        {
+            using (var conn = GetConnection() as NpgsqlConnection)
+            {
+                conn.Open();
+                using (var insertCmd = new NpgsqlCommand($"DELETE FROM {schemaName}.rel_fiber_cable_to_route_element WHERE fiber_cable_id = @i", conn))
+                {
+                    var interestIdparam = insertCmd.Parameters.Add("i", NpgsqlTypes.NpgsqlDbType.Uuid);
+                    interestIdparam.Value = interestId;
+                    insertCmd.ExecuteNonQuery();
+                }
+            }
+        }
+        #endregion
+
 
         #region Node Container
         public void CreateNodeContainerTable(string schemaName, IDbTransaction transaction = null)

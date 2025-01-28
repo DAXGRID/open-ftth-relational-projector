@@ -1,7 +1,9 @@
 ﻿using NetTopologySuite.Triangulate;
 using OpenFTTH.RouteNetwork.API.Model;
+using OpenFTTH.UtilityGraphService.API.Model;
 using OpenFTTH.UtilityGraphService.API.Model.UtilityNetwork;
 using OpenFTTH.UtilityGraphService.Business.NodeContainers.Events;
+using OpenFTTH.UtilityGraphService.Business.SpanEquipments;
 using OpenFTTH.UtilityGraphService.Business.SpanEquipments.Events;
 using OpenFTTH.UtilityGraphService.Business.TerminalEquipments.Events;
 using OpenFTTH.Work.Business.Events;
@@ -87,6 +89,11 @@ namespace OpenFTTH.RelationalProjector.State
 
         public Dictionary<Guid, Guid[]> WalkOfInterestToRouteElementRelations => _walkOfInterestToRouteElementRelations;
 
+        private Dictionary<Guid, Guid[]> _fiberCableToRouteElementRelations = new();
+
+        public Dictionary<Guid, Guid[]> FiberCableToRouteElementRelations => _fiberCableToRouteElementRelations;
+
+
         public void ProcessWalkOfInterestAdded(RouteNetworkInterest interest)
         {
             _walkOfInterestToRouteElementRelations[interest.Id] = RemoveDublicatedIds(interest.RouteNetworkElementRefs).ToArray();
@@ -157,7 +164,60 @@ namespace OpenFTTH.RelationalProjector.State
                 ));
             }
 
+            if (spanEquipmentSpecification.IsCable)
+            {
+                stateChanges.AddRange(ProcessCableToRouteElement(equipment.Id, equipment.WalkOfInterestId, equipment.UtilityNetworkHops));
+            }
+                
+
             return stateChanges;
+        }
+
+        private List<ObjectState> ProcessCableToRouteElement(Guid cableId, Guid interestId, UtilityNetworkHop[] utilityNetworkHops)
+        {
+            var walkOfInterest = _walkOfInterestToRouteElementRelations[interestId];
+
+            if (utilityNetworkHops == null)
+            {
+                _fiberCableToRouteElementRelations[cableId] = walkOfInterest.ToArray();
+            }
+            else
+            {
+                Stack<UtilityNetworkHop> utilityHopStack = new Stack<UtilityNetworkHop>(utilityNetworkHops.ToArray().Reverse());
+
+                RouteNetworkElementIdList routeNetworkHopIds = new();
+
+                double totalLength = 0;
+
+                for (int woiIndex = 0; woiIndex < walkOfInterest.Count(); woiIndex++)
+                {
+                    Guid routeNetworkElementId = walkOfInterest[woiIndex];
+
+                    if (utilityHopStack.Count > 0 && utilityHopStack.Peek().FromNodeId == routeNetworkElementId)
+                    {
+                        var utilityHop = utilityHopStack.Pop();
+
+                        // Search for end node
+                        for (int searchIndex = woiIndex + 1; searchIndex < walkOfInterest.Count(); searchIndex++)
+                        {
+                            Guid searchNetworkElementId = walkOfInterest[searchIndex];
+
+                            if (searchNetworkElementId == utilityHop.ToNodeId)
+                                break;
+
+                            woiIndex++;
+                        }
+                    }
+                    else
+                    {
+                        routeNetworkHopIds.Add(routeNetworkElementId);
+                    }
+                }
+
+                _fiberCableToRouteElementRelations[cableId] = routeNetworkHopIds.ToArray();
+            }
+
+            return new List<ObjectState>() { new CableToRouteElementState(LatestChangeType.UPDATED, cableId, _fiberCableToRouteElementRelations[cableId]) };
         }
 
         public List<ObjectState> ProcessSpanEquipmentMoved(SpanEquipmentMoved @event)
@@ -288,6 +348,7 @@ namespace OpenFTTH.RelationalProjector.State
 
         public List<ObjectState> ProcessSpanEquipmentAffixedToParent(SpanEquipmentAffixedToParent @event)
         {
+
             List<ObjectState> stateChanges = new List<ObjectState>();
 
             foreach (var utilityNetworkHop in @event.NewUtilityHopList)
@@ -322,6 +383,10 @@ namespace OpenFTTH.RelationalProjector.State
                 }
             }
 
+            var spanEquipmentState = _spanEquipmentStateById[@event.SpanEquipmentId];
+
+            stateChanges.AddRange(ProcessCableToRouteElement(@event.SpanEquipmentId, spanEquipmentState.WalkOfInterestId, @event.NewUtilityHopList));
+
             return stateChanges;
         }
 
@@ -350,6 +415,10 @@ namespace OpenFTTH.RelationalProjector.State
 
                 _spanEquipmentParentsByChildId.Remove(@event.SpanEquipmentId);
             }
+
+            var spanEquipmentState = _spanEquipmentStateById[@event.SpanEquipmentId];
+
+            stateChanges.AddRange(ProcessCableToRouteElement(@event.SpanEquipmentId, spanEquipmentState.WalkOfInterestId, @event.NewUtilityHopList));
 
             return stateChanges;
         }

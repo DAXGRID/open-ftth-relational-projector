@@ -206,6 +206,7 @@ namespace OpenFTTH.RelationalProjector
             }
             else
             {
+                _state.ProcessWalkOfInterestAdded(@event.Interest);
                 _dbWriter.InsertGuidsIntoRouteElementToInterestTable(_schemaName, @event.Interest.Id, @event.Interest.RouteNetworkElementRefs);
             }
         }
@@ -218,6 +219,7 @@ namespace OpenFTTH.RelationalProjector
             }
             else
             {
+                _state.ProcessWalkOfInterestUpdated(@event.InterestId, @event.RouteNetworkElementIds);
                 _dbWriter.DeleteGuidsFromRouteElementToInterestTable(_schemaName, @event.InterestId);
                 _dbWriter.InsertGuidsIntoRouteElementToInterestTable(_schemaName, @event.InterestId, @event.RouteNetworkElementIds);
             }
@@ -231,6 +233,7 @@ namespace OpenFTTH.RelationalProjector
             }
             else
             {
+                _state.ProcessInterestRemoved(@event.InterestId);
                 _dbWriter.DeleteGuidsFromRouteElementToInterestTable(_schemaName, @event.InterestId);
             }
         }

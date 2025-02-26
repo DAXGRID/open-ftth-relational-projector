@@ -23,6 +23,8 @@ namespace OpenFTTH.RelationalProjector
         {
             _logger.LogInformation("Starting relational projector worker at: {time}", DateTimeOffset.Now);
 
+            _eventStore.ScanForProjections();
+
             _logger.LogInformation("Start reading all events...");
 
             await _eventStore.DehydrateProjectionsAsync(stoppingToken).ConfigureAwait(false);

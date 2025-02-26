@@ -6,21 +6,21 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
-    <PackageReference Include="OpenFTTH.Events" Version="3.1.0" />
-    <PackageReference Include="OpenFTTH.EventSourcing" Version="3.0.5" />
-    <PackageReference Include="OpenFTTH.RouteNetwork.API" Version="2.1.0" />
-    <PackageReference Include="OpenFTTH.RouteNetwork.Business" Version="2.1.0" />
-    <PackageReference Include="OpenFTTH.UtilityGraphService.API" Version="2.12.10" />
-    <PackageReference Include="OpenFTTH.UtilityGraphService.Business" Version="2.12.10" />
-    <PackageReference Include="OpenFTTH.Work.API" Version="0.6.0" />
-    <PackageReference Include="OpenFTTH.Work.Business" Version="0.6.0" />
-    <PackageReference Include="Serilog" Version="2.12.0" />
-    <PackageReference Include="Serilog.Extensions.Logging" Version="3.1.0" />
-    <PackageReference Include="Serilog.Formatting.Compact" Version="1.1.0" />
-    <PackageReference Include="Serilog.Settings.Configuration" Version="3.4.0" />
-    <PackageReference Include="Serilog.Sinks.Console" Version="4.1.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.2" />
+    <PackageReference Include="OpenFTTH.Events" Version="3.2.0" />
+    <PackageReference Include="OpenFTTH.EventSourcing" Version="4.0.1" />
+    <PackageReference Include="OpenFTTH.RouteNetwork.API" Version="3.1.0" />
+    <PackageReference Include="OpenFTTH.RouteNetwork.Business" Version="3.1.0" />
+    <PackageReference Include="OpenFTTH.UtilityGraphService.API" Version="4.16.3" />
+    <PackageReference Include="OpenFTTH.UtilityGraphService.Business" Version="4.16.3" />
+    <PackageReference Include="OpenFTTH.Work.API" Version="0.8.0" />
+    <PackageReference Include="OpenFTTH.Work.Business" Version="0.8.0" />
+    <PackageReference Include="Serilog" Version="4.2.0" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.0" />
+    <PackageReference Include="Serilog.Formatting.Compact" Version="3.0.0" />
+    <PackageReference Include="Serilog.Settings.Configuration" Version="9.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
   </ItemGroup>
 
   <ItemGroup>

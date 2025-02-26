@@ -187,8 +187,6 @@ namespace OpenFTTH.RelationalProjector.State
 
                 RouteNetworkElementIdList routeNetworkHopIds = new();
 
-                double totalLength = 0;
-
                 for (int woiIndex = 0; woiIndex < walkOfInterest.Count(); woiIndex++)
                 {
                     Guid routeNetworkElementId = walkOfInterest[woiIndex];

@@ -1,4 +1,6 @@
 ﻿using NetTopologySuite.Triangulate;
+using OpenFTTH.Installation;
+using OpenFTTH.Installation.Events;
 using OpenFTTH.RouteNetwork.API.Model;
 using OpenFTTH.UtilityGraphService.API.Model;
 using OpenFTTH.UtilityGraphService.API.Model.UtilityNetwork;
@@ -613,6 +615,62 @@ namespace OpenFTTH.RelationalProjector.State
         }
 
         #endregion
+
+        #region Installation Information
+
+        private Dictionary<Guid, InstallationState> _installationStateById = new();
+
+        public IEnumerable<InstallationState> InstallationStates => _installationStateById.Values;
+
+        public InstallationState ProcessInstallationCreated(InstallationCreated @event)
+        {
+            var state = InstallationState.Create(@event);
+            _installationStateById[@event.Id] = state;
+
+            return state;
+        }
+
+        public InstallationState ProcessInstallationUnitAddressIdChanged(InstallationUnitAddressChanged @event)
+        {
+            if (_installationStateById.ContainsKey(@event.Id))
+            {
+                var state = _installationStateById[@event.Id];
+                state.UnitAddressId = @event.UnitAddressId;
+
+                return state;
+            }
+
+            return null;
+        }
+
+        public InstallationState ProcessInstallationStatusChanged(InstallationStatusChanged @event)
+        {
+            if (_installationStateById.ContainsKey(@event.Id))
+            {
+                var state = _installationStateById[@event.Id];
+                state.Status = @event.Status;
+
+                return state;
+            }
+
+            return null;
+        }
+
+        public InstallationState ProcessInstallationLocationRemarkChanged(InstallationLocationRemarkChanged @event)
+        {
+            if (_installationStateById.ContainsKey(@event.Id))
+            {
+                var state = _installationStateById[@event.Id];
+                state.LocationRemark = @event.LocationRemark;
+
+                return state;
+            }
+
+            return null;
+        }
+
+        #endregion
+
 
         private IEnumerable<Guid> RemoveDublicatedIds(RouteNetworkElementIdList routeNetworkElementRefs)
         {

@@ -21,6 +21,8 @@ namespace OpenFTTH.RelationalProjector
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            _eventStore.ScanForProjections();
+
             _logger.LogInformation("Starting relational projector worker at: {time}", DateTimeOffset.Now);
 
             _logger.LogInformation("Start reading all events...");

@@ -8,8 +8,9 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
-    <PackageReference Include="OpenFTTH.Events" Version="3.1.0" />
-    <PackageReference Include="OpenFTTH.EventSourcing" Version="3.0.5" />
+    <PackageReference Include="OpenFTTH.Events" Version="3.2.0" />
+    <PackageReference Include="OpenFTTH.EventSourcing" Version="4.1.0" />
+    <PackageReference Include="OpenFTTH.Installation" Version="0.1.0" />
     <PackageReference Include="OpenFTTH.RouteNetwork.API" Version="2.1.0" />
     <PackageReference Include="OpenFTTH.RouteNetwork.Business" Version="2.1.0" />
     <PackageReference Include="OpenFTTH.UtilityGraphService.API" Version="2.12.10" />

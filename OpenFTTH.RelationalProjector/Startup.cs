@@ -12,6 +12,7 @@ using OpenFTTH.RelationalProjector.Settings;
 using Serilog;
 using Serilog.Formatting.Compact;
 using System;
+using System.Reflection;
 
 namespace OpenFTTH.RelationalProjector
 {
@@ -85,6 +86,7 @@ namespace OpenFTTH.RelationalProjector
                                 hostContext.Configuration.GetSection("GeoDatabase").Bind(databaseSettings));
 
                 services.AddSingleton<EventSourcing.IProjection, RelationalDatabaseProjection>();
+
 
                 // Setup the event store
                 services.AddSingleton<IEventStore>(e =>

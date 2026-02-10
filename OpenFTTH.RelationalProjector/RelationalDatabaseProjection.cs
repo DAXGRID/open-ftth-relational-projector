@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using OpenFTTH.EventSourcing;
+using OpenFTTH.Installation.Events;
 using OpenFTTH.RelationalProjector.Database;
 using OpenFTTH.RelationalProjector.State;
 using OpenFTTH.RouteNetwork.API.Model;
@@ -65,7 +66,12 @@ namespace OpenFTTH.RelationalProjector
             // Work tasks
             ProjectEventAsync<WorkTaskCreated>(Project);
             ProjectEventAsync<WorkTaskStatusChanged>(Project);
-           
+
+            // Installation
+            ProjectEventAsync<InstallationCreated>(Project);
+            ProjectEventAsync<InstallationUnitAddressChanged>(Project);
+            ProjectEventAsync<InstallationStatusChanged>(Project);
+            ProjectEventAsync<InstallationLocationRemarkChanged>(Project);
         }
 
         private void PrepareDatabase()
@@ -78,6 +84,7 @@ namespace OpenFTTH.RelationalProjector
             _dbWriter.CreateServiceTerminationTable(_schemaName);
             _dbWriter.CreateConduitSlackTable(_schemaName);
             _dbWriter.CreateWorkTaskTable(_schemaName);
+            _dbWriter.CreateInstallationTable(_schemaName);
         }
 
         private Task Project(IEventEnvelope eventEnvelope)
@@ -188,6 +195,24 @@ namespace OpenFTTH.RelationalProjector
                     break;
 
                 case (WorkTaskStatusChanged @event):
+                    Handle(@event);
+                    break;
+
+
+                // Installations
+                case (InstallationCreated @event):
+                    Handle(@event);
+                    break;
+
+                case (InstallationUnitAddressChanged @event):
+                    Handle(@event);
+                    break;
+
+                case (InstallationStatusChanged @event):
+                    Handle(@event);
+                    break;
+
+                case (InstallationLocationRemarkChanged @event):
                     Handle(@event);
                     break;
             }
@@ -333,6 +358,52 @@ namespace OpenFTTH.RelationalProjector
 
         #endregion
 
+        #region Installation Events
+
+        private void Handle(InstallationCreated @event)
+        {
+            var state = _state.ProcessInstallationCreated(@event);
+
+            if (state != null && !_bulkMode)
+            {
+                _dbWriter.InsertInstallation(_schemaName, state);
+            }
+        }
+
+        private void Handle(InstallationUnitAddressChanged @event)
+        {
+            var state = _state.ProcessInstallationUnitAddressIdChanged(@event);
+
+            if (state != null && !_bulkMode)
+            {
+                _dbWriter.UpdateInstallation(_schemaName, state);
+            }
+        }
+
+        private void Handle(InstallationStatusChanged @event)
+        {
+            var state = _state.ProcessInstallationStatusChanged(@event);
+
+            if (state != null && !_bulkMode)
+            {
+                _dbWriter.UpdateInstallation(_schemaName, state);
+            }
+        }
+
+        private void Handle(InstallationLocationRemarkChanged @event)
+        {
+            var state = _state.ProcessInstallationLocationRemarkChanged(@event);
+
+            if (state != null && !_bulkMode)
+            {
+                _dbWriter.UpdateInstallation(_schemaName, state);
+            }
+        }
+
+
+        #endregion
+
+
         private void ApplyStateChanges(List<ObjectState> objectStates)
         {
             if (!_bulkMode)
@@ -412,6 +483,9 @@ namespace OpenFTTH.RelationalProjector
 
             _logger.LogInformation($"Writing work tasks...");
             _dbWriter.BulkCopyIntoWorkTaskTable(_schemaName, _state);
+
+            _logger.LogInformation($"Writing installations...");
+            _dbWriter.BulkCopyIntoInstallationTable(_schemaName, _state);
 
             _bulkMode = false;
 

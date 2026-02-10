@@ -691,6 +691,101 @@ namespace OpenFTTH.RelationalProjector.Database
 
         #endregion
 
+        #region Installation
+        public void CreateInstallationTable(string schemaName, IDbTransaction transaction = null)
+        {
+            // Create table
+            string createTableCmdText = $"CREATE TABLE IF NOT EXISTS {schemaName}.installation (id uuid, installation_id character varying(255), unit_address_id uuid, status character varying(255), location_remark character varying(5000), PRIMARY KEY(id));";
+            _logger.LogDebug($"Execute SQL: {createTableCmdText}");
+
+            RunDbCommand(transaction, createTableCmdText);
+        }
+
+        public void InsertInstallation(string schemaName, InstallationState installationState)
+        {
+            using var conn = GetConnection() as NpgsqlConnection;
+
+            conn.Open();
+
+            using var insertCmd = conn.CreateCommand();
+
+            insertCmd.CommandText = $"INSERT INTO {schemaName}.installation (id, installation_id, unit_address_id, status, location_remark) VALUES (@id, @installation_id, @unit_address_ud, @state, @location_remark)";
+
+            insertCmd.Parameters.Add("id", NpgsqlTypes.NpgsqlDbType.Uuid).Value = installationState.Id;
+
+            insertCmd.Parameters.Add("installation_id", NpgsqlTypes.NpgsqlDbType.Varchar).Value = installationState.InstallationId;
+
+            insertCmd.Parameters.Add("unit_address_id", NpgsqlTypes.NpgsqlDbType.Uuid).Value = installationState.UnitAddressId;
+
+            insertCmd.Parameters.Add("status", NpgsqlTypes.NpgsqlDbType.Varchar).Value = installationState.Status;
+
+            insertCmd.Parameters.Add("location_remark", NpgsqlTypes.NpgsqlDbType.Varchar).Value = installationState.LocationRemark;
+
+
+            insertCmd.ExecuteNonQuery();
+        }
+
+        public void UpdateInstallation(string schemaName, InstallationState installationState)
+        {
+            using (var conn = GetConnection() as NpgsqlConnection)
+            {
+                conn.Open();
+                using (var updateCmd = new NpgsqlCommand($"UPDATE {schemaName}.installation SET unit_address_id = @unit_address_id,  status = @status, location_remark = @location_remark WHERE id = @id", conn))
+                {
+                    updateCmd.Parameters.Add("id", NpgsqlTypes.NpgsqlDbType.Uuid).Value = installationState.Id;
+
+                    updateCmd.Parameters.Add("unit_address_id", NpgsqlTypes.NpgsqlDbType.Uuid).Value = installationState.UnitAddressId;
+
+                    updateCmd.Parameters.Add("status", NpgsqlTypes.NpgsqlDbType.Varchar).Value = installationState.Status;
+
+                    updateCmd.Parameters.Add("location_remark", NpgsqlTypes.NpgsqlDbType.Varchar).Value = installationState.LocationRemark;
+
+                    updateCmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+        public void DeleteInstallation(string schemaName, Guid installationId)
+        {
+            using (var conn = GetConnection() as NpgsqlConnection)
+            {
+                conn.Open();
+                using (var deleteCmd = new NpgsqlCommand($"DELETE FROM {schemaName}.installation WHERE id = @i", conn))
+                {
+                    deleteCmd.Parameters.Add("i", NpgsqlTypes.NpgsqlDbType.Uuid).Value = installationId;
+                    deleteCmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+        public void BulkCopyIntoInstallationTable(string schemaName, ProjektorState state)
+        {
+            using (var conn = GetConnection() as NpgsqlConnection)
+            {
+                conn.Open();
+
+                // Truncate the table
+                using (var truncateCmd = new NpgsqlCommand($"truncate table {schemaName}.installation", conn))
+                {
+                    truncateCmd.ExecuteNonQuery();
+                }
+
+                using (var writer = conn.BeginBinaryImport($"copy {schemaName}.installation (id, installation_id, unit_address_id, status, location_remark) from STDIN (FORMAT BINARY)"))
+                {
+                    foreach (var installation in state.InstallationStates)
+                    {
+
+                        writer.WriteRow(installation.Id, installation.InstallationId, installation.UnitAddressId is null ? DBNull.Value : installation.UnitAddressId, installation.Status, installation.LocationRemark);
+                    }
+
+                    writer.Complete();
+                }
+            }
+
+        }
+
+        #endregion
+
 
         #region Generel database commands
         public IDbConnection GetConnection()

@@ -719,7 +719,7 @@ namespace OpenFTTH.RelationalProjector.Database
 
             insertCmd.Parameters.Add("status", NpgsqlTypes.NpgsqlDbType.Varchar).Value = installationState.Status;
 
-            insertCmd.Parameters.Add("location_remark", NpgsqlTypes.NpgsqlDbType.Varchar).Value = installationState.LocationRemark;
+            insertCmd.Parameters.Add("location_remark", NpgsqlTypes.NpgsqlDbType.Varchar).Value = installationState.LocationRemark is null ? DBNull.Value : installationState.LocationRemark;
 
 
             insertCmd.ExecuteNonQuery();
@@ -738,7 +738,7 @@ namespace OpenFTTH.RelationalProjector.Database
 
                     updateCmd.Parameters.Add("status", NpgsqlTypes.NpgsqlDbType.Varchar).Value = installationState.Status;
 
-                    updateCmd.Parameters.Add("location_remark", NpgsqlTypes.NpgsqlDbType.Varchar).Value = installationState.LocationRemark;
+                    updateCmd.Parameters.Add("location_remark", NpgsqlTypes.NpgsqlDbType.Varchar).Value = installationState.LocationRemark is null ? DBNull.Value : installationState.LocationRemark;
 
                     updateCmd.ExecuteNonQuery();
                 }
@@ -775,7 +775,12 @@ namespace OpenFTTH.RelationalProjector.Database
                     foreach (var installation in state.InstallationStates)
                     {
 
-                        writer.WriteRow(installation.Id, installation.InstallationId, installation.UnitAddressId is null ? DBNull.Value : installation.UnitAddressId, installation.Status, installation.LocationRemark);
+                        writer.WriteRow(
+                            installation.Id,
+                            installation.InstallationId,
+                            installation.UnitAddressId is null ? DBNull.Value : installation.UnitAddressId,
+                            installation.Status,
+                            installation.LocationRemark is null ? DBNull.Value : installation.LocationRemark);
                     }
 
                     writer.Complete();

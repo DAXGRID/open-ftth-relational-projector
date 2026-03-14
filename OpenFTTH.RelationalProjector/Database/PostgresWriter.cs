@@ -709,7 +709,7 @@ namespace OpenFTTH.RelationalProjector.Database
 
             using var insertCmd = conn.CreateCommand();
 
-            insertCmd.CommandText = $"INSERT INTO {schemaName}.installation (id, installation_id, unit_address_id, status, location_remark) VALUES (@id, @installation_id, @unit_address_id, @state, @location_remark)";
+            insertCmd.CommandText = $"INSERT INTO {schemaName}.installation (id, installation_id, unit_address_id, status, location_remark) VALUES (@id, @installation_id, @unit_address_id, @status, @location_remark)";
 
             insertCmd.Parameters.Add("id", NpgsqlTypes.NpgsqlDbType.Uuid).Value = installationState.Id;
 

@@ -11,7 +11,7 @@ executors:
     environment:
       IMAGE_NAME: openftth/relational-projector
     docker:
-      - image: cimg/base:2025.01
+      - image: cimg/base:2026.03
         auth:
           username: $DOCKER_LOGIN
           password: $DOCKER_ACCESSTOKEN

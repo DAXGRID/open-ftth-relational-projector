@@ -319,6 +319,8 @@ namespace OpenFTTH.RelationalProjector.State
 
             spanEquipmentState.UnitAddressId = @event.AddressInfo.UnitAddressId;
 
+            spanEquipmentState.AddressRemark = @event.AddressInfo.Remark;
+
             return new List<ObjectState> { spanEquipmentState };
         }
 

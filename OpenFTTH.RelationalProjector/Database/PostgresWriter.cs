@@ -303,7 +303,7 @@ namespace OpenFTTH.RelationalProjector.Database
         public void CreateSpanEquipmentTable(string schemaName, IDbTransaction transaction = null)
         {
             // Create table
-            string createTableCmdText = $"CREATE TABLE IF NOT EXISTS {schemaName}.span_equipment (id uuid, interest_id uuid, outer_diameter integer, is_cable boolean, name character varying(255), spec_name character varying(255), access_address_id uuid, unit_address_id uuid, PRIMARY KEY(id));";
+            string createTableCmdText = $"CREATE TABLE IF NOT EXISTS {schemaName}.span_equipment (id uuid, interest_id uuid, outer_diameter integer, is_cable boolean, name character varying(255), spec_name character varying(255), access_address_id uuid, unit_address_id uuid, address_remark character varying(5000), PRIMARY KEY(id));";
             _logger.LogDebug($"Execute SQL: {createTableCmdText}");
 
             RunDbCommand(transaction, createTableCmdText);
@@ -339,6 +339,9 @@ namespace OpenFTTH.RelationalProjector.Database
 
             insertCmd.Parameters.Add("unit_address_id", NpgsqlTypes.NpgsqlDbType.Uuid).Value = spanEquipmentState.UnitAddressId is null ? DBNull.Value : spanEquipmentState.UnitAddressId;
 
+            insertCmd.Parameters.Add("address_remark", NpgsqlTypes.NpgsqlDbType.Varchar).Value = spanEquipmentState.AddressRemark is null ? DBNull.Value : spanEquipmentState.AddressRemark;
+
+
             insertCmd.ExecuteNonQuery();
         }
 
@@ -360,6 +363,9 @@ namespace OpenFTTH.RelationalProjector.Database
                     updateCmd.Parameters.Add("access_address_id", NpgsqlTypes.NpgsqlDbType.Uuid).Value = spanEquipmentState.AccessAddressId is null ? DBNull.Value : spanEquipmentState.AccessAddressId;
 
                     updateCmd.Parameters.Add("unit_address_id", NpgsqlTypes.NpgsqlDbType.Uuid).Value = spanEquipmentState.UnitAddressId is null ? DBNull.Value : spanEquipmentState.UnitAddressId;
+
+                    updateCmd.Parameters.Add("address_remark", NpgsqlTypes.NpgsqlDbType.Varchar).Value = spanEquipmentState.AddressRemark is null ? DBNull.Value : spanEquipmentState.AddressRemark;
+
 
                     updateCmd.ExecuteNonQuery();
                 }
@@ -391,12 +397,12 @@ namespace OpenFTTH.RelationalProjector.Database
                     truncateCmd.ExecuteNonQuery();
                 }
 
-                using (var writer = conn.BeginBinaryImport($"copy {schemaName}.span_equipment (id, interest_id, outer_diameter, is_cable, name, spec_name, access_address_id, unit_address_id) from STDIN (FORMAT BINARY)"))
+                using (var writer = conn.BeginBinaryImport($"copy {schemaName}.span_equipment (id, interest_id, outer_diameter, is_cable, name, spec_name, access_address_id, unit_address_id, address_remark) from STDIN (FORMAT BINARY)"))
                 {
                     foreach (var spanEquipment in state.SpanEquipmentStates)
                     {
               
-                        writer.WriteRow(spanEquipment.Id, spanEquipment.WalkOfInterestId, spanEquipment.OuterDiameter, spanEquipment.IsCable, spanEquipment.Name, spanEquipment.SpecificationName, spanEquipment.AccessAddressId is null ? DBNull.Value : spanEquipment.AccessAddressId, spanEquipment.UnitAddressId is null ? DBNull.Value : spanEquipment.UnitAddressId);
+                        writer.WriteRow(spanEquipment.Id, spanEquipment.WalkOfInterestId, spanEquipment.OuterDiameter, spanEquipment.IsCable, spanEquipment.Name, spanEquipment.SpecificationName, spanEquipment.AccessAddressId is null ? DBNull.Value : spanEquipment.AccessAddressId, spanEquipment.UnitAddressId is null ? DBNull.Value : spanEquipment.UnitAddressId, spanEquipment.AddressRemark is null ? DBNull.Value : spanEquipment.AddressRemark);
                     }
 
                     writer.Complete();

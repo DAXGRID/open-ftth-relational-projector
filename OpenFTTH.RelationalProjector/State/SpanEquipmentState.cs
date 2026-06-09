@@ -30,6 +30,8 @@ namespace OpenFTTH.RelationalProjector.State
         public string SpecificationName { get; set; }
         public int? OuterDiameter { get; set; }
 
+        public string? AddressRemark { get; set; }
+
         public SpanEquipmentState(LatestChangeType latestChangeType) : base(latestChangeType)
         {
         }
@@ -61,6 +63,11 @@ namespace OpenFTTH.RelationalProjector.State
             if (spanEquipment.AddressInfo != null && spanEquipment.AddressInfo.UnitAddressId != null)
             {
                 state.UnitAddressId = spanEquipment.AddressInfo.UnitAddressId.Value;
+            }
+
+            if (spanEquipment.AddressInfo != null && spanEquipment.AddressInfo.Remark != null)
+            {
+                state.AddressRemark = spanEquipment.AddressInfo.Remark;
             }
 
             return state;

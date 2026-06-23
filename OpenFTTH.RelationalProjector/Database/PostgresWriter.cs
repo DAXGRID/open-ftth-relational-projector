@@ -350,7 +350,7 @@ namespace OpenFTTH.RelationalProjector.Database
             using (var conn = GetConnection() as NpgsqlConnection)
             {
                 conn.Open();
-                using (var updateCmd = new NpgsqlCommand($"UPDATE {schemaName}.span_equipment SET outer_diameter = @outer_diameter,  name = @name, spec_name = @spec_name, access_address_id = @access_address_id, unit_address_id = @unit_address_id WHERE id = @id", conn))
+                using (var updateCmd = new NpgsqlCommand($"UPDATE {schemaName}.span_equipment SET outer_diameter = @outer_diameter,  name = @name, spec_name = @spec_name, access_address_id = @access_address_id, unit_address_id = @unit_address_id, address_remark = @address_remark WHERE id = @id", conn))
                 {
                     updateCmd.Parameters.Add("id", NpgsqlTypes.NpgsqlDbType.Uuid).Value = spanEquipmentState.Id;
 

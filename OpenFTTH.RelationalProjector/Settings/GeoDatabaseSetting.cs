@@ -12,7 +12,7 @@
         {
             get
             {
-                return $"Host={Host};Port={Port};Username={Username};Password={Password};Database={Database}";
+                return $"Host={Host};Port={Port};Username={Username};Password={Password};Database={Database};Ssl Mode=Require";
             }
         }
     }

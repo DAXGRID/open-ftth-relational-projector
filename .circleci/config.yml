@@ -9,7 +9,7 @@ executors:
         password: $DOCKER_ACCESSTOKEN
   docker-publisher:
     environment:
-      IMAGE_NAME: openftth/relational-projector
+      IMAGE_NAME: daxgrid/relational-projector
     docker:
       - image: cimg/base:current
         auth:

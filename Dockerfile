@@ -17,5 +17,6 @@ WORKDIR /app
 
 RUN apk add --no-cache icu-libs krb5-libs
 
-COPY --from=build-env /app/OpenFTTH.RelationalProjector/out .
+COPY --from=build-env --chown=app:app /app/OpenFTTH.RelationalProjector/out .
+USER app
 ENTRYPOINT ["dotnet", "OpenFTTH.RelationalProjector.dll"]
